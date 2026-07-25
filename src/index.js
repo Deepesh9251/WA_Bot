@@ -288,7 +288,7 @@ const client = new Client({
       '--metrics-recording-only',
       '--safebrowsing-disable-auto-update',
       '--blink-settings=imagesEnabled=false',
-      '--js-flags="--max-old-space-size=256"',
+      '--js-flags="--max-old-space-size=128"',
     ],
   },
 });
