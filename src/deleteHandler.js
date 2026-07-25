@@ -33,7 +33,7 @@ function recordDeletedLog(url, sender, group) {
 
 /**
  * Deletes a WhatsApp message for everyone in the group.
- * Executes deletion and warning reply concurrently for maximum speed (< 300ms).
+ * Executes deletion FIRST. ONLY sends warning reply if deletion succeeds.
  *
  * @param {import('whatsapp-web.js').Message} message
  * @returns {Promise<void>}
@@ -41,58 +41,59 @@ function recordDeletedLog(url, sender, group) {
 async function deleteMatchedMessage(message) {
   const msgSerializedId = typeof message.id === 'string' ? message.id : (message.id._serialized || message.id.id);
   const cleanUrl = message.body ? message.body.trim() : 'N/A';
-  recordDeletedLog(cleanUrl, message.author || message.from, message.from);
+  let deleteSuccess = false;
 
-  // Task 1: Delete the message (Fast path: standard delete, Fallback: direct evaluate)
-  const deleteOp = (async () => {
+  // Step 1: Attempt deletion (Fast path: standard delete, Fallback: direct evaluate)
+  try {
+    await message.delete(true);
+    deleteSuccess = true;
+    logger.info(`Deleted Instagram link [${cleanUrl}] from ${message.author || message.from} in group (${message.from})`);
+  } catch (err) {
+    // Fallback for multi-device @lid users
     try {
-      await message.delete(true);
-      logger.info(`Deleted Instagram link [${cleanUrl}] from ${message.author || message.from} in group (${message.from})`);
-    } catch (err) {
-      // Fallback for multi-device @lid users
-      try {
-        await message.client.pupPage.evaluate(async (targetId) => {
-          const Collections = window.require('WAWebCollections');
-          const MsgStore = Collections.Msg;
-          const ChatStore = Collections.Chat;
-          const { Cmd } = window.require('WAWebCmd');
+      await message.client.pupPage.evaluate(async (targetId) => {
+        const Collections = window.require('WAWebCollections');
+        const MsgStore = Collections.Msg;
+        const ChatStore = Collections.Chat;
+        const { Cmd } = window.require('WAWebCmd');
 
-          let msg = MsgStore.get(targetId);
-          if (!msg && MsgStore._models) {
-            msg = MsgStore._models.find(m => m.id._serialized === targetId || m.id.id === targetId || m.id === targetId);
+        let msg = MsgStore.get(targetId);
+        if (!msg && MsgStore._models) {
+          msg = MsgStore._models.find(m => m.id._serialized === targetId || m.id.id === targetId || m.id === targetId);
+        }
+        if (msg) {
+          let chat = ChatStore.get(msg.id.remote);
+          if (!chat && ChatStore.find) {
+            chat = await ChatStore.find(msg.id.remote);
           }
-          if (msg) {
-            let chat = ChatStore.get(msg.id.remote);
-            if (!chat && ChatStore.find) {
-              chat = await ChatStore.find(msg.id.remote);
-            }
-            if (chat && Cmd && Cmd.sendRevokeMsgs) {
-              try {
-                await Cmd.sendRevokeMsgs(chat, { list: [msg], type: 'message' }, { clearMedia: true, type: 'Admin' });
-              } catch (e1) {
-                await Cmd.sendRevokeMsgs(chat, [msg], { clearMedia: true, type: 'Admin' });
-              }
+          if (chat && Cmd && Cmd.sendRevokeMsgs) {
+            try {
+              await Cmd.sendRevokeMsgs(chat, { list: [msg], type: 'message' }, { clearMedia: true, type: 'Admin' });
+            } catch (e1) {
+              await Cmd.sendRevokeMsgs(chat, [msg], { clearMedia: true, type: 'Admin' });
             }
           }
-        }, msgSerializedId);
-        logger.info(`Deleted Instagram link via direct fallback [${cleanUrl}] from ${message.author || message.from}`);
-      } catch (fallbackErr) {
-        logger.error(`Failed to delete message from ${message.author || message.from}:`, fallbackErr.message);
-        await sendTelegramAlert(
-          `⚠️ Failed to delete an Instagram link.\n` +
-          `Sender: ${message.author || message.from}\n` +
-          `Group: ${message.from}\n` +
-          `Error: ${fallbackErr.message}`
-        );
-      }
+        }
+      }, msgSerializedId);
+      deleteSuccess = true;
+      logger.info(`Deleted Instagram link via direct fallback [${cleanUrl}] from ${message.author || message.from}`);
+    } catch (fallbackErr) {
+      deleteSuccess = false;
+      logger.error(`Failed to delete message from ${message.author || message.from}:`, fallbackErr.message);
+      await sendTelegramAlert(
+        `⚠️ Failed to delete an Instagram link.\n` +
+        `Sender: ${message.author || message.from}\n` +
+        `Group: ${message.from}\n` +
+        `Error: ${fallbackErr.message}`
+      );
     }
-  })();
+  }
 
-  // Task 2: Send warning roast reply concurrently
-  const warningOp = sendWarningReply(message);
-
-  // Run both operations in parallel for 3x speed boost!
-  await Promise.all([deleteOp, warningOp]);
+  // Step 2: ONLY if deletion succeeded, record log and send warning roast reply
+  if (deleteSuccess) {
+    recordDeletedLog(cleanUrl, message.author || message.from, message.from);
+    await sendWarningReply(message);
+  }
 }
 
 const WARNING_MESSAGES = [
