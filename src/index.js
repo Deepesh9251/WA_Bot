@@ -90,16 +90,22 @@ http.createServer(async (req, res) => {
   }
 
   if (botStatus === 'AUTHENTICATED') {
+    const isProd = Boolean(process.env.RENDER || process.env.NODE_ENV === 'production');
+    const envTag = isProd ? 'PROD ☁️' : 'DEV 💻';
     const uptimeMins = Math.floor((new Date() - startTime) / 60000);
-    const logsHtml = recentDeletedLogs.length === 0
-      ? '<p style="color:#64748b;font-style:italic;padding:20px 0;">No reels deleted yet since boot. Watching groups 24/7...</p>'
-      : recentDeletedLogs.map(item => `
-          <tr style="border-bottom: 1px solid #334155;">
-            <td style="padding: 10px; color:#94a3b8; font-size:13px;">${item.timestamp}</td>
-            <td style="padding: 10px; font-weight: 500; font-size:13px;"><a href="${item.url}" target="_blank" style="color:#38bdf8;text-decoration:none;">${item.url}</a></td>
-            <td style="padding: 10px; color:#cbd5e1; font-size:13px;">${item.sender.split('@')[0]}</td>
-          </tr>
-        `).join('');
+
+    let logsRows = '';
+    if (recentDeletedLogs.length === 0) {
+      logsHtmlRows = '<tr><td colspan="3" style="color:#64748b;font-style:italic;padding:20px 0;text-align:center;">No reels deleted yet since boot. Watching groups 24/7...</td></tr>';
+    } else {
+      logsHtmlRows = recentDeletedLogs.map(item => `
+        <tr style="border-bottom: 1px solid #334155;">
+          <td style="padding: 10px; color:#94a3b8; font-size:13px;">${item.timestamp}</td>
+          <td style="padding: 10px; font-weight: 500; font-size:13px;"><a href="${item.url}" target="_blank" style="color:#38bdf8;text-decoration:none;">${item.url}</a></td>
+          <td style="padding: 10px; color:#cbd5e1; font-size:13px;">${item.sender.split('@')[0]}</td>
+        </tr>
+      `).join('');
+    }
 
     res.end(`
       <!DOCTYPE html>
@@ -114,10 +120,10 @@ http.createServer(async (req, res) => {
             h1 { font-size: 24px; margin: 0; color: #f8fafc; }
             .status-badge { background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.3); padding: 6px 14px; border-radius: 20px; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
             .pulse { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; box-shadow: 0 0 10px #22c55e; }
-            .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 30px; }
-            .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; }
-            .card-title { color: #94a3b8; font-size: 13px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
-            .card-value { font-size: 18px; font-weight: 700; color: #f1f5f9; }
+            .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 30px; }
+            .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 18px; }
+            .card-title { color: #94a3b8; font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+            .card-value { font-size: 16px; font-weight: 700; color: #f1f5f9; }
             .btn-group { display: flex; gap: 12px; margin-bottom: 30px; }
             .btn { background: #334155; color: #f8fafc; border: 1px solid #475569; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s; }
             .btn:hover { background: #475569; }
@@ -148,6 +154,10 @@ http.createServer(async (req, res) => {
 
             <div class="grid">
               <div class="card">
+                <div class="card-title">Environment</div>
+                <div class="card-value" style="color:${isProd ? '#a855f7' : '#f59e0b'};">${envTag}</div>
+              </div>
+              <div class="card">
                 <div class="card-title">Target Mode</div>
                 <div class="card-value" style="color:#38bdf8;">Zero-Config (ALL)</div>
               </div>
@@ -157,7 +167,7 @@ http.createServer(async (req, res) => {
               </div>
               <div class="card">
                 <div class="card-title">Heartbeat Pinger</div>
-                <div class="card-value" style="color:#22c55e;">Healthchecks.io OK</div>
+                <div class="card-value" style="color:#22c55e;">Healthchecks OK</div>
               </div>
             </div>
 
@@ -172,7 +182,7 @@ http.createServer(async (req, res) => {
                   </tr>
                 </thead>
                 <tbody>
-                  ${logsHtml}
+                  ${logsHtmlRows}
                 </tbody>
               </table>
             </div>

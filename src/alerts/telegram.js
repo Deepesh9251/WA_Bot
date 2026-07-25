@@ -15,7 +15,8 @@ const config = require('../config');
 const logger = require('../logger');
 
 const TELEGRAM_API_BASE = 'https://api.telegram.org';
-const MESSAGE_PREFIX = '[WA-Bot]';
+const envTag = process.env.RENDER || process.env.NODE_ENV === 'production' ? 'PROD' : 'DEV';
+const MESSAGE_PREFIX = `[WA-Bot:${envTag}]`;
 
 /**
  * Sends a text message to the owner's Telegram chat.

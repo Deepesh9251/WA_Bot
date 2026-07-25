@@ -14,17 +14,19 @@ function timestamp() {
   return new Date().toISOString();
 }
 
+const envTag = process.env.RENDER || process.env.NODE_ENV === 'production' ? 'PROD' : 'DEV';
+
 const logger = {
   info(message, ...args) {
-    console.log(`[${timestamp()}] [INFO] `, message, ...args);
+    console.log(`[${timestamp()}] [${envTag}] [INFO] `, message, ...args);
   },
 
   warn(message, ...args) {
-    console.warn(`[${timestamp()}] [WARN] `, message, ...args);
+    console.warn(`[${timestamp()}] [${envTag}] [WARN] `, message, ...args);
   },
 
   error(message, ...args) {
-    console.error(`[${timestamp()}] [ERROR]`, message, ...args);
+    console.error(`[${timestamp()}] [${envTag}] [ERROR]`, message, ...args);
   },
 };
 
