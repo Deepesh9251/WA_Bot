@@ -43,24 +43,10 @@ async function deleteMatchedMessage(message) {
   const cleanUrl = message.body ? message.body.trim() : 'N/A';
   let deleteSuccess = false;
 
-  // Extract rich metadata: Pushname/Name, Group Name, and exact Sent Time
-  let senderName = message.author ? message.author.split('@')[0] : (message.from ? message.from.split('@')[0] : 'Unknown');
-  let groupName = 'Group';
+  // Extract rich metadata directly from message object in memory
+  let senderName = message._data?.pushname || message._data?.notifyName || (message.author ? message.author.split('@')[0] : (message.from ? message.from.split('@')[0] : 'Sender'));
+  let groupName = message.from ? message.from.split('@')[0] : 'Group';
   const sentTime = message.timestamp ? new Date(message.timestamp * 1000).toLocaleTimeString() : new Date().toLocaleTimeString();
-
-  try {
-    const contact = await message.getContact();
-    if (contact && (contact.pushname || contact.name || contact.shortName)) {
-      senderName = contact.pushname || contact.name || contact.shortName;
-    }
-  } catch (e) {}
-
-  try {
-    const chat = await message.getChat();
-    if (chat && chat.name) {
-      groupName = chat.name;
-    }
-  } catch (e) {}
 
   // Step 1: Attempt deletion (Fast path: standard delete, Fallback: direct evaluate)
   try {
