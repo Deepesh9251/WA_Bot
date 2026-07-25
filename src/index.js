@@ -28,15 +28,18 @@ const { startHeartbeat } = require('./alerts/healthcheck');
 
 // ── HTTP Keep-Alive & Web QR Server ──────────────────────────────
 let latestQrDataUrl = null;
+let botStatus = 'INITIALIZING'; // INITIALIZING | QR_READY | AUTHENTICATED
 
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
-  if (latestQrDataUrl) {
-    res.writeHead(200, { 'Content-Type': 'text/html' });
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+
+  if (botStatus === 'QR_READY' && latestQrDataUrl) {
     res.end(`
       <!DOCTYPE html>
       <html>
         <head>
+          <meta charset="UTF-8">
           <title>WhatsApp Bot — Scan QR Code</title>
           <meta http-equiv="refresh" content="5">
           <style>
@@ -61,14 +64,35 @@ http.createServer((req, res) => {
     return;
   }
 
-  res.writeHead(200, { 'Content-Type': 'text/html' });
+  if (botStatus === 'AUTHENTICATED') {
+    res.end(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>WhatsApp Bot Active</title>
+        </head>
+        <body style="font-family:-apple-system,sans-serif;text-align:center;background:#0f172a;color:#22c55e;padding-top:80px;">
+          <h1 style="font-size:28px;">WhatsApp Link Deleter Bot is Active 24/7 ✅</h1>
+          <p style="color:#94a3b8;font-size:16px;">Session is authenticated and monitoring groups.</p>
+        </body>
+      </html>
+    `);
+    return;
+  }
+
+  // Initializing state
   res.end(`
     <!DOCTYPE html>
     <html>
-      <head><title>WhatsApp Bot Active</title></head>
-      <body style="font-family:-apple-system,sans-serif;text-align:center;background:#0f172a;color:#22c55e;padding-top:80px;">
-        <h1 style="font-size:28px;">WhatsApp Link Deleter Bot is Active 24/7 ✅</h1>
-        <p style="color:#94a3b8;font-size:16px;">Session is authenticated and monitoring groups.</p>
+      <head>
+        <meta charset="UTF-8">
+        <title>WhatsApp Bot Initializing</title>
+        <meta http-equiv="refresh" content="3">
+      </head>
+      <body style="font-family:-apple-system,sans-serif;text-align:center;background:#0f172a;color:#38bdf8;padding-top:80px;">
+        <h1 style="font-size:28px;">⏳ Initializing WhatsApp Web...</h1>
+        <p style="color:#94a3b8;font-size:16px;">Launching Chromium browser. QR code page will load in a few seconds...</p>
       </body>
     </html>
   `);
@@ -101,6 +125,7 @@ const client = new Client({
 let hasLoggedQrNotice = false;
 
 client.on('qr', async (qr) => {
+  botStatus = 'QR_READY';
   try {
     latestQrDataUrl = await QRCode.toDataURL(qr);
   } catch (e) {}
@@ -113,6 +138,7 @@ client.on('qr', async (qr) => {
 
 // ── Event: Ready ──────────────────────────────────────────────────
 client.on('ready', async () => {
+  botStatus = 'AUTHENTICATED';
   latestQrDataUrl = null; // Clear QR page when authenticated
   hasLoggedQrNotice = false;
   logger.info('Bot connected and ready ✅');
