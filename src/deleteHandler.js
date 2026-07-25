@@ -19,6 +19,18 @@
 const logger = require('./logger');
 const { sendTelegramAlert } = require('./alerts/telegram');
 
+const recentDeletedLogs = [];
+
+function recordDeletedLog(url, sender, group) {
+  recentDeletedLogs.unshift({
+    timestamp: new Date().toLocaleTimeString(),
+    url: url || 'N/A',
+    sender: sender || 'Unknown',
+    group: group || 'Unknown',
+  });
+  if (recentDeletedLogs.length > 20) recentDeletedLogs.pop();
+}
+
 /**
  * Deletes a WhatsApp message for everyone in the group.
  *
@@ -68,7 +80,9 @@ async function deleteMatchedMessage(message) {
     }, msgSerializedId);
 
     if (res.success) {
-      logger.info(`Deleted Instagram link [${message.body ? message.body.trim() : 'N/A'}] from ${message.author || message.from} in group (${message.from})`);
+      const cleanUrl = message.body ? message.body.trim() : 'N/A';
+      recordDeletedLog(cleanUrl, message.author || message.from, message.from);
+      logger.info(`Deleted Instagram link [${cleanUrl}] from ${message.author || message.from} in group (${message.from})`);
       await sendWarningReply(message);
       return;
     }
@@ -79,7 +93,9 @@ async function deleteMatchedMessage(message) {
   // Fallback to standard delete call
   try {
     await message.delete(true);
-    logger.info(`Deleted Instagram link via standard fallback [${message.body ? message.body.trim() : 'N/A'}] from ${message.author || message.from}`);
+    const cleanUrl = message.body ? message.body.trim() : 'N/A';
+    recordDeletedLog(cleanUrl, message.author || message.from, message.from);
+    logger.info(`Deleted Instagram link via standard fallback [${cleanUrl}] from ${message.author || message.from}`);
     await sendWarningReply(message);
   } catch (err) {
     logger.error(`Failed to delete message from ${message.author || message.from}:`, err.message);
@@ -131,4 +147,4 @@ async function sendWarningReply(message) {
   }
 }
 
-module.exports = { deleteMatchedMessage };
+module.exports = { deleteMatchedMessage, recentDeletedLogs };
