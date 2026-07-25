@@ -248,7 +248,6 @@ const client = new Client({
       '--disable-gpu',
       '--no-first-run',
       '--no-zygote',
-      '--single-process',
       '--disable-extensions',
       '--js-flags="--max-old-space-size=256"',
     ],
