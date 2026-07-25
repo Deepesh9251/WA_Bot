@@ -96,13 +96,14 @@ http.createServer(async (req, res) => {
 
     let logsHtmlRows = '';
     if (recentDeletedLogs.length === 0) {
-      logsHtmlRows = '<tr><td colspan="3" style="color:#64748b;font-style:italic;padding:20px 0;text-align:center;">No reels deleted yet since boot. Watching groups 24/7...</td></tr>';
+      logsHtmlRows = '<tr><td colspan="4" style="color:#64748b;font-style:italic;padding:20px 0;text-align:center;">No reels deleted yet since boot. Watching groups 24/7...</td></tr>';
     } else {
       logsHtmlRows = recentDeletedLogs.map(item => `
         <tr style="border-bottom: 1px solid #334155;">
           <td style="padding: 10px; color:#94a3b8; font-size:13px;">${item.timestamp}</td>
-          <td style="padding: 10px; font-weight: 500; font-size:13px;"><a href="${item.url}" target="_blank" style="color:#38bdf8;text-decoration:none;">${item.url}</a></td>
-          <td style="padding: 10px; color:#cbd5e1; font-size:13px;">${item.sender.split('@')[0]}</td>
+          <td style="padding: 10px; color:#f1f5f9; font-weight:600; font-size:13px;">${item.sender}</td>
+          <td style="padding: 10px; color:#38bdf8; font-size:13px;">${item.group}</td>
+          <td style="padding: 10px; font-weight: 500; font-size:13px;"><a href="${item.url}" target="_blank" style="color:#e2e8f0;text-decoration:underline;">${item.url}</a></td>
         </tr>
       `).join('');
     }
@@ -115,7 +116,7 @@ http.createServer(async (req, res) => {
           <title>WhatsApp Bot — Dashboard</title>
           <style>
             body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #f8fafc; margin: 0; padding: 30px 20px; }
-            .container { max-width: 760px; margin: 0 auto; }
+            .container { max-width: 860px; margin: 0 auto; }
             .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; }
             h1 { font-size: 24px; margin: 0; color: #f8fafc; }
             .status-badge { background: rgba(34,197,94,0.15); color: #22c55e; border: 1px solid rgba(34,197,94,0.3); padding: 6px 14px; border-radius: 20px; font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
@@ -129,7 +130,7 @@ http.createServer(async (req, res) => {
             .btn:hover { background: #475569; }
             .btn-primary { background: #0284c7; border-color: #0369a1; }
             .btn-primary:hover { background: #0369a1; }
-            .logs-container { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; }
+            .logs-container { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 20px; overflow-x: auto; }
             table { width: 100%; border-collapse: collapse; text-align: left; }
             th { color: #94a3b8; font-size: 12px; text-transform: uppercase; padding: 10px; border-bottom: 1px solid #334155; }
             #toast { display: none; background: #22c55e; color: #0f172a; font-weight: bold; padding: 12px 20px; border-radius: 8px; margin-bottom: 20px; text-align: center; }
@@ -176,9 +177,10 @@ http.createServer(async (req, res) => {
               <table>
                 <thead>
                   <tr>
-                    <th>Time</th>
+                    <th>Sent Time</th>
+                    <th>Sender Name</th>
+                    <th>Group Name</th>
                     <th>Deleted Reel Link</th>
-                    <th>Sender ID</th>
                   </tr>
                 </thead>
                 <tbody>

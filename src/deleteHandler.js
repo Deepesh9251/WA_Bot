@@ -21,12 +21,12 @@ const { sendTelegramAlert } = require('./alerts/telegram');
 
 const recentDeletedLogs = [];
 
-function recordDeletedLog(url, sender, group) {
+function recordDeletedLog(url, senderName, groupName, sentTime) {
   recentDeletedLogs.unshift({
-    timestamp: new Date().toLocaleTimeString(),
+    timestamp: sentTime || new Date().toLocaleTimeString(),
     url: url || 'N/A',
-    sender: sender || 'Unknown',
-    group: group || 'Unknown',
+    sender: senderName || 'Unknown',
+    group: groupName || 'Group',
   });
   if (recentDeletedLogs.length > 20) recentDeletedLogs.pop();
 }
@@ -43,11 +43,30 @@ async function deleteMatchedMessage(message) {
   const cleanUrl = message.body ? message.body.trim() : 'N/A';
   let deleteSuccess = false;
 
+  // Extract rich metadata: Pushname/Name, Group Name, and exact Sent Time
+  let senderName = message.author ? message.author.split('@')[0] : (message.from ? message.from.split('@')[0] : 'Unknown');
+  let groupName = 'Group';
+  const sentTime = message.timestamp ? new Date(message.timestamp * 1000).toLocaleTimeString() : new Date().toLocaleTimeString();
+
+  try {
+    const contact = await message.getContact();
+    if (contact && (contact.pushname || contact.name || contact.shortName)) {
+      senderName = contact.pushname || contact.name || contact.shortName;
+    }
+  } catch (e) {}
+
+  try {
+    const chat = await message.getChat();
+    if (chat && chat.name) {
+      groupName = chat.name;
+    }
+  } catch (e) {}
+
   // Step 1: Attempt deletion (Fast path: standard delete, Fallback: direct evaluate)
   try {
     await message.delete(true);
     deleteSuccess = true;
-    logger.info(`Deleted Instagram link [${cleanUrl}] from ${message.author || message.from} in group (${message.from})`);
+    logger.info(`Deleted Instagram link [${cleanUrl}] from "${senderName}" in group "${groupName}"`);
   } catch (err) {
     // Fallback for multi-device @lid users
     try {
@@ -76,14 +95,14 @@ async function deleteMatchedMessage(message) {
         }
       }, msgSerializedId);
       deleteSuccess = true;
-      logger.info(`Deleted Instagram link via direct fallback [${cleanUrl}] from ${message.author || message.from}`);
+      logger.info(`Deleted Instagram link via direct fallback [${cleanUrl}] from "${senderName}" in group "${groupName}"`);
     } catch (fallbackErr) {
       deleteSuccess = false;
-      logger.error(`Failed to delete message from ${message.author || message.from}:`, fallbackErr.message);
+      logger.error(`Failed to delete message from ${senderName}:`, fallbackErr.message);
       await sendTelegramAlert(
         `⚠️ Failed to delete an Instagram link.\n` +
-        `Sender: ${message.author || message.from}\n` +
-        `Group: ${message.from}\n` +
+        `Sender: ${senderName}\n` +
+        `Group: ${groupName}\n` +
         `Error: ${fallbackErr.message}`
       );
     }
@@ -91,7 +110,7 @@ async function deleteMatchedMessage(message) {
 
   // Step 2: ONLY if deletion succeeded, record log and send warning roast reply
   if (deleteSuccess) {
-    recordDeletedLog(cleanUrl, message.author || message.from, message.from);
+    recordDeletedLog(cleanUrl, senderName, groupName, sentTime);
     await sendWarningReply(message);
   }
 }
