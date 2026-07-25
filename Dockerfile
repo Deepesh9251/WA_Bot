@@ -54,4 +54,4 @@ COPY src/ ./src/
 # Expose port for HTTP keep-alive server
 EXPOSE 3000
 
-CMD ["node", "src/index.js"]
+CMD ["node", "--max-old-space-size=256", "src/index.js"]
