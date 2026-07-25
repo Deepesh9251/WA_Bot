@@ -18,7 +18,7 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 
-const http = require('http');
+const QRCode = require('qrcode');
 
 const config = require('./config');
 const logger = require('./logger');
@@ -27,50 +27,86 @@ const { deleteMatchedMessage } = require('./deleteHandler');
 const { sendTelegramAlert } = require('./alerts/telegram');
 const { startHeartbeat } = require('./alerts/healthcheck');
 
-// ── HTTP Keep-Alive Server ────────────────────────────────────────
-// Listens on process.env.PORT for incoming health-checks.
-// Render receives incoming requests, preventing inactivity sleep.
+// ── HTTP Keep-Alive & Web QR Server ──────────────────────────────
+let latestQrDataUrl = null;
+
 const PORT = process.env.PORT || 3000;
 http.createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('WhatsApp Link Deleter Bot is active 24/7 ✅\n');
+  if (latestQrDataUrl) {
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>WhatsApp Bot — Scan QR Code</title>
+          <meta http-equiv="refresh" content="5">
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; text-align: center; background: #0f172a; color: #fff; padding: 40px 20px; }
+            .card { background: #1e293b; max-width: 360px; margin: 0 auto; padding: 30px 20px; border-radius: 16px; box-shadow: 0 20px 30px rgba(0,0,0,0.5); }
+            img { background: #fff; padding: 15px; border-radius: 12px; width: 240px; height: 240px; margin: 20px 0; }
+            h2 { color: #22c55e; margin-top: 0; }
+            p { color: #94a3b8; font-size: 14px; }
+            .badge { background: #334155; color: #e2e8f0; padding: 6px 12px; border-radius: 20px; font-size: 12px; display: inline-block; margin-top: 10px; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h2>📱 Scan to Connect Bot</h2>
+            <p>Open WhatsApp &rarr; Linked Devices &rarr; Link a Device</p>
+            <img src="${latestQrDataUrl}" alt="WhatsApp QR Code" />
+            <div><span class="badge">Auto-refreshes every 5 seconds</span></div>
+          </div>
+        </body>
+      </html>
+    `);
+    return;
+  }
+
+  res.writeHead(200, { 'Content-Type': 'text/html' });
+  res.end(`
+    <!DOCTYPE html>
+    <html>
+      <head><title>WhatsApp Bot Active</title></head>
+      <body style="font-family:-apple-system,sans-serif;text-align:center;background:#0f172a;color:#22c55e;padding-top:80px;">
+        <h1 style="font-size:28px;">WhatsApp Link Deleter Bot is Active 24/7 ✅</h1>
+        <p style="color:#94a3b8;font-size:16px;">Session is authenticated and monitoring groups.</p>
+      </body>
+    </html>
+  `);
 }).listen(PORT, () => {
-  logger.info(`HTTP Keep-Alive server listening on port ${PORT}`);
+  logger.info(`HTTP Keep-Alive & Web QR server listening on port ${PORT}`);
 });
 
 // ── WhatsApp Client Setup ─────────────────────────────────────────
-// LocalAuth saves the session to .wwebjs_auth/ on disk so QR scan
-// is only needed once. The folder is excluded from git (.gitignore).
 const client = new Client({
   authStrategy: new LocalAuth(),
   puppeteer: {
-    // In Docker (Fly.io), we use the system-installed Chromium
-    // (set via env var). Locally, Puppeteer uses its bundled Chrome.
     ...(process.env.PUPPETEER_EXECUTABLE_PATH
       ? { executablePath: process.env.PUPPETEER_EXECUTABLE_PATH }
       : {}),
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',    // Required in Docker (small /dev/shm)
+      '--disable-dev-shm-usage',
       '--disable-gpu',
     ],
   },
 });
 
 // ── Event: QR Code ────────────────────────────────────────────────
-// Fires when a new session needs to be authenticated.
-client.on('qr', (qr) => {
-  logger.info('QR code received — scan with the bot WhatsApp account:');
-  qrcode.generate(qr, { small: true });
+client.on('qr', async (qr) => {
+  logger.info('QR code received — rendering Web QR page at app URL...');
+  try {
+    latestQrDataUrl = await QRCode.toDataURL(qr);
+  } catch (e) {}
 
-  // Can't send the QR image over Telegram at this point (not authenticated yet)
-  sendTelegramAlert('📱 QR code ready — check your server logs to scan it. (WhatsApp → Linked Devices → Link a Device)');
+  qrcode.generate(qr, { small: true });
+  sendTelegramAlert('📱 QR Code Ready! Open your app URL to scan cleanly: https://wa-bot-rc6r.onrender.com');
 });
 
 // ── Event: Ready ──────────────────────────────────────────────────
-// Fires once authenticated and fully connected.
 client.on('ready', async () => {
+  latestQrDataUrl = null; // Clear QR page when authenticated
   logger.info('Bot connected and ready ✅');
   await sendTelegramAlert('Bot connected and ready ✅');
 
