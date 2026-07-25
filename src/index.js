@@ -95,13 +95,10 @@ const client = new Client({
 
 // ── Event: QR Code ────────────────────────────────────────────────
 client.on('qr', async (qr) => {
-  logger.info('QR code received — rendering Web QR page at app URL...');
   try {
     latestQrDataUrl = await QRCode.toDataURL(qr);
   } catch (e) {}
-
-  qrcode.generate(qr, { small: true });
-  sendTelegramAlert('📱 QR Code Ready! Open your app URL to scan cleanly: https://wa-bot-rc6r.onrender.com');
+  logger.info('QR Code refreshed — scan cleanly at: https://wa-bot-rc6r.onrender.com');
 });
 
 // ── Event: Ready ──────────────────────────────────────────────────
