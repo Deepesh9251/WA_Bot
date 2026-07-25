@@ -15,7 +15,6 @@
 //        then exits. Use this to find your group's ID on first run.
 // ──────────────────────────────────────────────────────────────────
 
-const { Client, LocalAuth } = require('whatsapp-web.js');
 const http = require('http');
 const QRCode = require('qrcode');
 
@@ -234,9 +233,27 @@ http.createServer(async (req, res) => {
   logger.info(`HTTP Keep-Alive & Web QR server listening on port ${PORT}`);
 });
 
+const { Client, LocalAuth, RemoteAuth } = require('whatsapp-web.js');
+const { MongoStore } = require('wwebjs-mongo');
+const mongoose = require('mongoose');
+
 // ── WhatsApp Client Setup ─────────────────────────────────────────
+let authStrategy;
+if (config.mongoUri) {
+  logger.info('Connecting to MongoDB for persistent RemoteAuth cloud session storage...');
+  mongoose.connect(config.mongoUri);
+  const store = new MongoStore({ mongoose });
+  authStrategy = new RemoteAuth({
+    store: store,
+    backupSyncIntervalMs: 300000
+  });
+} else {
+  logger.info('Using LocalAuth session storage (.wwebjs_auth)...');
+  authStrategy = new LocalAuth();
+}
+
 const client = new Client({
-  authStrategy: new LocalAuth(),
+  authStrategy: authStrategy,
   puppeteer: {
     ...(process.env.PUPPETEER_EXECUTABLE_PATH
       ? { executablePath: process.env.PUPPETEER_EXECUTABLE_PATH }

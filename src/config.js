@@ -38,7 +38,10 @@ const config = {
   // Healthchecks.io dead-man's-switch
   healthcheckPingUrl: process.env.HEALTHCHECK_PING_URL,
 
-  // WhatsApp target group — 'ALL' (default) monitors every group the bot is in
+  // Optional MongoDB URI for persistent cloud session (RemoteAuth)
+  mongoUri: process.env.MONGO_URI || null,
+
+  // Target WhatsApp group JID(s) — 'ALL' monitors every group the bot is in
   targetGroupId: process.env.TARGET_GROUP_ID || 'ALL',
 };
 
