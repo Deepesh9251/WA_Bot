@@ -1,0 +1,28 @@
+# fly.toml — Fly.io deployment config for WhatsApp Link Deleter Bot
+# Docs: https://fly.io/docs/reference/configuration/
+
+app = "wa-link-deleter"
+primary_region = "bom"   # Mumbai — closest to India (IST timezone)
+
+[build]
+  dockerfile = "Dockerfile"
+
+# ── Persistent Volume Mount ────────────────────────────────────────
+# The WhatsApp session is stored in .wwebjs_auth/ — this MUST survive
+# redeploys and VM restarts, otherwise every deploy needs a new QR scan.
+# Volume is created once with: flyctl volumes create wa_session --size 1
+[[mounts]]
+  source = "wa_session"
+  destination = "/app/.wwebjs_auth"
+
+# ── VM Sizing ─────────────────────────────────────────────────────
+# 512 MB RAM is enough for Puppeteer/Chromium in headless mode.
+# shared-cpu-1x is the smallest (free tier) persistent VM.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+# ── No HTTP service ───────────────────────────────────────────────
+# This bot is a pure background worker — it doesn't expose any ports
+# or HTTP endpoints. Fly.io will not route any incoming traffic to it.
+# Remove the auto-generated [http_service] block if flyctl adds one.

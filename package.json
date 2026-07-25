@@ -1,0 +1,24 @@
+{
+  "name": "whatsapp-link-deleter",
+  "version": "1.0.0",
+  "description": "Auto-deletes Instagram-only reel/post links from a WhatsApp group",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "pm2:start": "make start",
+    "pm2:stop": "make stop",
+    "pm2:restart": "make restart",
+    "status": "make status",
+    "logs": "make logs",
+    "discover": "make discover",
+    "test": "make test"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.0",
+    "qrcode-terminal": "^0.12.0",
+    "whatsapp-web.js": "^1.34.7"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

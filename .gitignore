@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Secrets — NEVER commit these
+.env
+
+# WhatsApp session & cache — contains auth tokens, must not be in git
+.wwebjs_auth/
+.wwebjs_cache/
+
+# pm2 logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
