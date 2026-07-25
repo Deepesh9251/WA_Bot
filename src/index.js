@@ -94,18 +94,31 @@ const client = new Client({
 });
 
 // ── Event: QR Code ────────────────────────────────────────────────
+let hasLoggedQrNotice = false;
+
 client.on('qr', async (qr) => {
   try {
     latestQrDataUrl = await QRCode.toDataURL(qr);
   } catch (e) {}
-  logger.info('QR Code refreshed — scan cleanly at: https://wa-bot-rc6r.onrender.com');
+
+  if (!hasLoggedQrNotice) {
+    logger.info('QR Code ready — scan cleanly at app URL (https://wa-bot-rc6r.onrender.com)');
+    hasLoggedQrNotice = true;
+  }
 });
 
 // ── Event: Ready ──────────────────────────────────────────────────
 client.on('ready', async () => {
   latestQrDataUrl = null; // Clear QR page when authenticated
+  hasLoggedQrNotice = false;
   logger.info('Bot connected and ready ✅');
   await sendTelegramAlert('Bot connected and ready ✅');
+
+  // ── Event: Disconnected ───────────────────────────────────────────
+  client.on('disconnected', async (reason) => {
+    logger.warn(`WhatsApp client disconnected: ${reason}`);
+    await sendTelegramAlert(`⚠️ WhatsApp bot disconnected: ${reason}`);
+  });
 
   // ── DISCOVERY MODE ──────────────────────────────────────────────
   // If TARGET_GROUP_ID is not set, list all groups and exit.

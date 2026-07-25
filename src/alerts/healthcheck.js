@@ -25,9 +25,7 @@ const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 async function ping() {
   try {
     const response = await fetch(config.healthcheckPingUrl);
-    if (response.ok) {
-      logger.info('Healthcheck ping sent successfully');
-    } else {
+    if (!response.ok) {
       logger.warn(`Healthcheck ping returned HTTP ${response.status}`);
     }
   } catch (err) {
