@@ -94,7 +94,7 @@ http.createServer(async (req, res) => {
     const envTag = isProd ? 'PROD ☁️' : 'DEV 💻';
     const uptimeMins = Math.floor((new Date() - startTime) / 60000);
 
-    let logsRows = '';
+    let logsHtmlRows = '';
     if (recentDeletedLogs.length === 0) {
       logsHtmlRows = '<tr><td colspan="3" style="color:#64748b;font-style:italic;padding:20px 0;text-align:center;">No reels deleted yet since boot. Watching groups 24/7...</td></tr>';
     } else {
