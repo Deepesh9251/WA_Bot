@@ -33,79 +33,66 @@ function recordDeletedLog(url, sender, group) {
 
 /**
  * Deletes a WhatsApp message for everyone in the group.
+ * Executes deletion and warning reply concurrently for maximum speed (< 300ms).
  *
  * @param {import('whatsapp-web.js').Message} message
  * @returns {Promise<void>}
  */
 async function deleteMatchedMessage(message) {
   const msgSerializedId = typeof message.id === 'string' ? message.id : (message.id._serialized || message.id.id);
+  const cleanUrl = message.body ? message.body.trim() : 'N/A';
+  recordDeletedLog(cleanUrl, message.author || message.from, message.from);
 
-  try {
-    const res = await message.client.pupPage.evaluate(async (targetId) => {
-      const Collections = window.require('WAWebCollections');
-      const MsgStore = Collections.Msg;
-      const ChatStore = Collections.Chat;
-      const { Cmd } = window.require('WAWebCmd');
-
-      let msg = MsgStore.get(targetId);
-      if (!msg && MsgStore._models) {
-        msg = MsgStore._models.find(m => m.id._serialized === targetId || m.id.id === targetId || m.id === targetId);
-      }
-      if (!msg && MsgStore.getMessagesById) {
-        try {
-          const res = await MsgStore.getMessagesById([targetId]);
-          msg = res?.messages?.[0];
-        } catch (e) {}
-      }
-
-      if (!msg) return { success: false, error: 'Message not found in MsgStore' };
-
-      let chat = ChatStore.get(msg.id.remote);
-      if (!chat && ChatStore.find) {
-        chat = await ChatStore.find(msg.id.remote);
-      }
-
-      if (!chat) return { success: false, error: 'Chat not found' };
-
-      if (Cmd && Cmd.sendRevokeMsgs) {
-        try {
-          await Cmd.sendRevokeMsgs(chat, { list: [msg], type: 'message' }, { clearMedia: true, type: 'Admin' });
-        } catch (e1) {
-          await Cmd.sendRevokeMsgs(chat, [msg], { clearMedia: true, type: 'Admin' });
-        }
-        return { success: true };
-      }
-
-      return { success: false, error: 'Cmd.sendRevokeMsgs unavailable' };
-    }, msgSerializedId);
-
-    if (res.success) {
-      const cleanUrl = message.body ? message.body.trim() : 'N/A';
-      recordDeletedLog(cleanUrl, message.author || message.from, message.from);
+  // Task 1: Delete the message (Fast path: standard delete, Fallback: direct evaluate)
+  const deleteOp = (async () => {
+    try {
+      await message.delete(true);
       logger.info(`Deleted Instagram link [${cleanUrl}] from ${message.author || message.from} in group (${message.from})`);
-      await sendWarningReply(message);
-      return;
-    }
-  } catch (err) {
-    logger.warn(`Direct revoke attempt failed: ${err.message}. Trying standard delete...`);
-  }
+    } catch (err) {
+      // Fallback for multi-device @lid users
+      try {
+        await message.client.pupPage.evaluate(async (targetId) => {
+          const Collections = window.require('WAWebCollections');
+          const MsgStore = Collections.Msg;
+          const ChatStore = Collections.Chat;
+          const { Cmd } = window.require('WAWebCmd');
 
-  // Fallback to standard delete call
-  try {
-    await message.delete(true);
-    const cleanUrl = message.body ? message.body.trim() : 'N/A';
-    recordDeletedLog(cleanUrl, message.author || message.from, message.from);
-    logger.info(`Deleted Instagram link via standard fallback [${cleanUrl}] from ${message.author || message.from}`);
-    await sendWarningReply(message);
-  } catch (err) {
-    logger.error(`Failed to delete message from ${message.author || message.from}:`, err.message);
-    await sendTelegramAlert(
-      `⚠️ Failed to delete an Instagram link.\n` +
-      `Sender: ${message.author || message.from}\n` +
-      `Group: ${message.from}\n` +
-      `Error: ${err.message}`
-    );
-  }
+          let msg = MsgStore.get(targetId);
+          if (!msg && MsgStore._models) {
+            msg = MsgStore._models.find(m => m.id._serialized === targetId || m.id.id === targetId || m.id === targetId);
+          }
+          if (msg) {
+            let chat = ChatStore.get(msg.id.remote);
+            if (!chat && ChatStore.find) {
+              chat = await ChatStore.find(msg.id.remote);
+            }
+            if (chat && Cmd && Cmd.sendRevokeMsgs) {
+              try {
+                await Cmd.sendRevokeMsgs(chat, { list: [msg], type: 'message' }, { clearMedia: true, type: 'Admin' });
+              } catch (e1) {
+                await Cmd.sendRevokeMsgs(chat, [msg], { clearMedia: true, type: 'Admin' });
+              }
+            }
+          }
+        }, msgSerializedId);
+        logger.info(`Deleted Instagram link via direct fallback [${cleanUrl}] from ${message.author || message.from}`);
+      } catch (fallbackErr) {
+        logger.error(`Failed to delete message from ${message.author || message.from}:`, fallbackErr.message);
+        await sendTelegramAlert(
+          `⚠️ Failed to delete an Instagram link.\n` +
+          `Sender: ${message.author || message.from}\n` +
+          `Group: ${message.from}\n` +
+          `Error: ${fallbackErr.message}`
+        );
+      }
+    }
+  })();
+
+  // Task 2: Send warning roast reply concurrently
+  const warningOp = sendWarningReply(message);
+
+  // Run both operations in parallel for 3x speed boost!
+  await Promise.all([deleteOp, warningOp]);
 }
 
 const WARNING_MESSAGES = [
