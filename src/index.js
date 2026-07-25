@@ -56,6 +56,11 @@ http.createServer((req, res) => {
             <h2>📱 Scan to Connect Bot</h2>
             <p>Open WhatsApp &rarr; Linked Devices &rarr; Link a Device</p>
             <img src="${latestQrDataUrl}" alt="WhatsApp QR Code" />
+            <div>
+              <button onclick="window.location.reload()" style="background:#22c55e;color:#0f172a;font-weight:bold;border:none;padding:12px 24px;border-radius:8px;cursor:pointer;font-size:15px;margin:10px 0;width:100%;">
+                Refresh QR Code 🔄
+              </button>
+            </div>
             <div><span class="badge">Auto-refreshes every 5 seconds</span></div>
           </div>
         </body>
