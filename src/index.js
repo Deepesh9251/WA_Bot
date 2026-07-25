@@ -287,6 +287,7 @@ const client = new Client({
       '--force-color-profile=srgb',
       '--metrics-recording-only',
       '--safebrowsing-disable-auto-update',
+      '--blink-settings=imagesEnabled=false',
       '--js-flags="--max-old-space-size=256"',
     ],
   },
