@@ -2,7 +2,7 @@
 # Makefile — Shorthand commands for WhatsApp Link Deleter Bot
 # ──────────────────────────────────────────────────────────────────
 
-.PHONY: start stop restart status logs discover test help
+.PHONY: start stop restart status logs discover test dev help
 
 # Ensure npm global binaries (pm2) are on PATH
 export PATH := $(HOME)/.npm-global/bin:$(PATH)
@@ -11,6 +11,7 @@ help:
 	@echo ""
 	@echo " WhatsApp Link Deleter Bot — Available Commands:"
 	@echo " ────────────────────────────────────────────────"
+	@echo "  make dev       - Run bot locally in foreground for testing"
 	@echo "  make start     - Start bot under pm2"
 	@echo "  make stop      - Stop bot"
 	@echo "  make restart   - Cleanly restart bot (clears lock files)"
@@ -19,6 +20,9 @@ help:
 	@echo "  make discover  - Run group discovery tool"
 	@echo "  make test      - Run link detector test suite"
 	@echo ""
+
+dev:
+	node src/index.js
 
 start:
 	pm2 start ecosystem.config.js

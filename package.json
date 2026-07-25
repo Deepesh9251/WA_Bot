@@ -5,6 +5,7 @@
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
+    "dev": "node src/index.js",
     "pm2:start": "make start",
     "pm2:stop": "make stop",
     "pm2:restart": "make restart",
