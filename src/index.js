@@ -18,12 +18,25 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 
+const http = require('http');
+
 const config = require('./config');
 const logger = require('./logger');
 const { isInstagramLinkOnly } = require('./linkDetector');
 const { deleteMatchedMessage } = require('./deleteHandler');
 const { sendTelegramAlert } = require('./alerts/telegram');
 const { startHeartbeat } = require('./alerts/healthcheck');
+
+// ── HTTP Keep-Alive Server ────────────────────────────────────────
+// Listens on process.env.PORT for incoming health-checks.
+// Render receives incoming requests, preventing inactivity sleep.
+const PORT = process.env.PORT || 3000;
+http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('WhatsApp Link Deleter Bot is active 24/7 ✅\n');
+}).listen(PORT, () => {
+  logger.info(`HTTP Keep-Alive server listening on port ${PORT}`);
+});
 
 // ── WhatsApp Client Setup ─────────────────────────────────────────
 // LocalAuth saves the session to .wwebjs_auth/ on disk so QR scan

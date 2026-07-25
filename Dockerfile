@@ -51,7 +51,7 @@ COPY src/ ./src/
 # so it persists across deploys — do NOT copy it into the image.
 
 # Run as a non-root user for security
-RUN groupadd -r botuser && useradd -r -g botuser botuser
-USER botuser
+# Expose port for HTTP keep-alive server
+EXPOSE 3000
 
 CMD ["node", "src/index.js"]
