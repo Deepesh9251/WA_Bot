@@ -15,7 +15,7 @@ const config = require('../config');
 const logger = require('../logger');
 
 const TELEGRAM_API_BASE = 'https://api.telegram.org';
-const envTag = process.env.RENDER || process.env.NODE_ENV === 'production' ? 'PROD' : 'DEV';
+const envTag = (process.env.APP_ENV || process.env.NODE_ENV || (process.env.RENDER ? 'PROD' : 'DEV')).toUpperCase();
 const MESSAGE_PREFIX = `[WA-Bot:${envTag}]`;
 
 /**
