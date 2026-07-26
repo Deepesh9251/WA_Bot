@@ -14,7 +14,7 @@ function timestamp() {
   return new Date().toISOString();
 }
 
-const envTag = process.env.RENDER || process.env.NODE_ENV === 'production' ? 'PROD' : 'DEV';
+const envTag = (process.env.APP_ENV || process.env.NODE_ENV || (process.env.RENDER ? 'PROD' : 'DEV')).toUpperCase();
 
 const logger = {
   info(message, ...args) {
