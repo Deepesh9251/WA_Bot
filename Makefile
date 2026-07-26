@@ -22,18 +22,28 @@ help:
 	@echo ""
 
 dev:
+	-pm2 stop wa-link-deleter 2>/dev/null
+	-pkill -9 -f chromium 2>/dev/null
+	-pkill -9 -f chrome 2>/dev/null
+	-fuser -k 3000/tcp 2>/dev/null
+	-find .wwebjs_auth -name "Singleton*" -delete 2>/dev/null
 	node src/index.js
 
 start:
 	pm2 start ecosystem.config.js
 
 stop:
-	pm2 stop wa-link-deleter
+	-pm2 stop wa-link-deleter 2>/dev/null
+	-pkill -9 -f chromium 2>/dev/null
+	-pkill -9 -f chrome 2>/dev/null
+	-fuser -k 3000/tcp 2>/dev/null
+	-find .wwebjs_auth -name "Singleton*" -delete 2>/dev/null
 
 restart:
 	-pm2 stop wa-link-deleter 2>/dev/null
 	-pkill -9 -f chromium 2>/dev/null
 	-pkill -9 -f chrome 2>/dev/null
+	-fuser -k 3000/tcp 2>/dev/null
 	-find .wwebjs_auth -name "Singleton*" -delete 2>/dev/null
 	pm2 start ecosystem.config.js
 	@echo "Bot cleanly restarted!"
