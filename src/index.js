@@ -323,6 +323,24 @@ client.on('remote_session_saved', () => {
   logger.info('Cloud session successfully saved to MongoDB Atlas! ✅');
 });
 
+// ── Event: Disconnected ───────────────────────────────────────────
+client.on('disconnected', async (reason) => {
+  logger.warn(`WhatsApp client disconnected: ${reason}`);
+  await sendTelegramAlert(`⚠️ WhatsApp bot disconnected: ${reason}`);
+  if (reason === 'LOGOUT' || String(reason).includes('LOGOUT') || String(reason).includes('UNPAIRED')) {
+    logger.warn('Session unlinked/logged out. Purging remote session from MongoDB Atlas...');
+    try {
+      if (client.authStrategy && typeof client.authStrategy.deleteRemoteSession === 'function') {
+        await client.authStrategy.deleteRemoteSession();
+      }
+    } catch (e) {}
+    try {
+      fs.rmSync('.wwebjs_auth', { recursive: true, force: true });
+    } catch (e) {}
+    process.exit(0);
+  }
+});
+
 // ── Event: Ready ──────────────────────────────────────────────────
 client.on('ready', async () => {
   botStatus = 'AUTHENTICATED';
@@ -330,12 +348,6 @@ client.on('ready', async () => {
   hasLoggedQrNotice = false;
   logger.info('Bot connected and ready ✅');
   await sendTelegramAlert('Bot connected and ready ✅');
-
-  // ── Event: Disconnected ───────────────────────────────────────────
-  client.on('disconnected', async (reason) => {
-    logger.warn(`WhatsApp client disconnected: ${reason}`);
-    await sendTelegramAlert(`⚠️ WhatsApp bot disconnected: ${reason}`);
-  });
 
   // ── DISCOVERY MODE ──────────────────────────────────────────────
   // If TARGET_GROUP_ID is not set, list all groups and exit.
