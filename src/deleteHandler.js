@@ -35,6 +35,7 @@ async function deleteMatchedMessage(message) {
   let deleteSuccess = false;
   let lastError = null;
 
+  // Step 1: Attempt native delete (3 fast retries with 300ms gap)
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       await message.delete(true);
@@ -43,21 +44,71 @@ async function deleteMatchedMessage(message) {
     } catch (err) {
       lastError = err;
       if (attempt < 3) {
-        await new Promise((r) => setTimeout(r, 400));
+        await new Promise((r) => setTimeout(r, 300));
       }
+    }
+  }
+
+  // Step 2: Fallback with explicit type: 'Admin' / 'Sender' for WAWeb 2.3000+ compatibility
+  if (!deleteSuccess) {
+    try {
+      const revoked = await message.client.pupPage.evaluate(async (msgObj) => {
+        try {
+          const collections = window.require && window.require('WAWebCollections');
+          if (!collections) return false;
+
+          let targetId = msgObj._serialized || msgObj.id;
+          let msg = collections.Msg ? collections.Msg.get(targetId) : null;
+          if (!msg && collections.Msg && collections.Msg._models) {
+            msg = collections.Msg._models.find((m) => m.id._serialized === targetId || m.id.id === msgObj.id);
+          }
+          if (!msg && collections.Chat) {
+            const chatJid = msgObj.remote || msgObj.from;
+            let chatObj = collections.Chat.get(chatJid);
+            if (chatObj && chatObj.msgs && chatObj.msgs._models) {
+              msg = chatObj.msgs._models.find((m) => m.id.id === msgObj.id || m.id._serialized === targetId);
+            }
+          }
+
+          if (msg) {
+            let chat = collections.Chat ? collections.Chat.get(msg.id.remote) : null;
+            if (!chat && collections.Chat && collections.Chat.find) {
+              chat = await collections.Chat.find(msg.id.remote);
+            }
+            const cmdObj = window.require && window.require('WAWebCmd');
+            const Cmd = cmdObj ? (cmdObj.Cmd || cmdObj) : null;
+            if (chat && Cmd && Cmd.sendRevokeMsgs) {
+              const isNewVersion = window.WWebJS && window.WWebJS.compareWwebVersions && window.WWebJS.compareWwebVersions(window.Debug.VERSION, '>=', '2.3000.0');
+              const revokeOpts = { clearMedia: true, type: msg.id.fromMe ? 'Sender' : 'Admin' };
+              if (isNewVersion) {
+                await Cmd.sendRevokeMsgs(chat, { list: [msg], type: 'message' }, revokeOpts);
+              } else {
+                await Cmd.sendRevokeMsgs(chat, [msg], revokeOpts);
+              }
+              return true;
+            }
+          }
+        } catch (e) {
+          return String(e);
+        }
+        return false;
+      }, message.id);
+
+      if (revoked === true) {
+        deleteSuccess = true;
+      }
+    } catch (e) {
+      deleteSuccess = false;
     }
   }
 
   if (!deleteSuccess) {
     const errorDetails = (lastError && lastError.message) ? lastError.message : String(lastError || 'Unknown error');
     logger.error(`Failed to delete message: ${errorDetails}`);
-    await sendTelegramAlert(
-      `⚠️ Failed to delete an Instagram link.\n` +
-      `Error: ${errorDetails}`
-    );
+    await sendTelegramAlert(`⚠️ Failed to delete an Instagram link.\nError: ${errorDetails}`);
   }
 
-  // Step 2: ONLY if deletion succeeded, resolve metadata and send warning roast reply
+  // Step 3: ONLY if deletion succeeded, resolve metadata and send warning roast reply
   if (deleteSuccess) {
     let groupName = 'Group';
     try {
