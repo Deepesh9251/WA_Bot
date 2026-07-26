@@ -2,7 +2,7 @@
 # Makefile — Shorthand commands for WhatsApp Link Deleter Bot
 # ──────────────────────────────────────────────────────────────────
 
-.PHONY: start stop restart status logs discover test dev help
+.PHONY: start stop restart status logs discover test dev stage help
 
 # Ensure npm global binaries (pm2) are on PATH
 export PATH := $(HOME)/.npm-global/bin:$(PATH)
@@ -12,6 +12,7 @@ help:
 	@echo " WhatsApp Link Deleter Bot — Available Commands:"
 	@echo " ────────────────────────────────────────────────"
 	@echo "  make dev       - Run bot locally in foreground for testing"
+	@echo "  make stage     - Run 512MB Docker container staging (exact Render match)"
 	@echo "  make start     - Start bot under pm2"
 	@echo "  make stop      - Stop bot"
 	@echo "  make restart   - Cleanly restart bot (clears lock files)"
@@ -28,6 +29,11 @@ dev:
 	-fuser -k 3000/tcp 2>/dev/null
 	-find .wwebjs_auth -name "Singleton*" -delete 2>/dev/null
 	node src/index.js
+
+stage:
+	@echo "🐳 Building & running Render 512MB Staging Container locally..."
+	docker build -t wa-bot:staging .
+	docker run --rm -it --name wa-bot-stage --memory=512m -p 10000:10000 --env-file .env wa-bot:staging
 
 start:
 	pm2 start ecosystem.config.js
