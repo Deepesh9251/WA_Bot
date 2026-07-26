@@ -33,13 +33,23 @@ async function deleteMatchedMessage(message) {
   const msgSerializedId = typeof message.id === 'string' ? message.id : (message.id._serialized || message.id.id);
   const cleanUrl = message.body ? message.body.trim() : 'N/A';
   let deleteSuccess = false;
+  let lastError = null;
 
-  try {
-    await message.delete(true);
-    deleteSuccess = true;
-  } catch (err) {
-    deleteSuccess = false;
-    const errorDetails = (err && err.message) ? err.message : String(err || 'Unknown error');
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await message.delete(true);
+      deleteSuccess = true;
+      break;
+    } catch (err) {
+      lastError = err;
+      if (attempt < 3) {
+        await new Promise((r) => setTimeout(r, 400));
+      }
+    }
+  }
+
+  if (!deleteSuccess) {
+    const errorDetails = (lastError && lastError.message) ? lastError.message : String(lastError || 'Unknown error');
     logger.error(`Failed to delete message: ${errorDetails}`);
     await sendTelegramAlert(
       `⚠️ Failed to delete an Instagram link.\n` +
