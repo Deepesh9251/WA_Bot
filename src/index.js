@@ -329,6 +329,18 @@ client.on('ready', async () => {
   logger.info('Bot connected and ready ✅');
   await sendTelegramAlert('Bot connected and ready ✅');
 
+  // Trigger initial MongoDB session backup 10 seconds after authentication
+  if (client.authStrategy && typeof client.authStrategy.storeRemoteSession === 'function') {
+    setTimeout(async () => {
+      try {
+        logger.info('Syncing session backup to MongoDB Atlas cloud storage...');
+        await client.authStrategy.storeRemoteSession({ emit: true });
+      } catch (syncErr) {
+        logger.warn(`Initial cloud sync notice: ${syncErr.message}`);
+      }
+    }, 10000);
+  }
+
   // ── Event: Disconnected ───────────────────────────────────────────
   client.on('disconnected', async (reason) => {
     logger.warn(`WhatsApp client disconnected: ${reason}`);
