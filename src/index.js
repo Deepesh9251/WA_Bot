@@ -15,6 +15,7 @@
 //        then exits. Use this to find your group's ID on first run.
 // ──────────────────────────────────────────────────────────────────
 
+const fs = require('fs');
 const http = require('http');
 const QRCode = require('qrcode');
 
@@ -349,6 +350,13 @@ client.on('ready', async () => {
 client.on('disconnected', async (reason) => {
   logger.warn(`WhatsApp client disconnected: ${reason}`);
   await sendTelegramAlert(`⚠️ WhatsApp bot disconnected: ${reason}`);
+  if (reason === 'LOGOUT' || String(reason).includes('LOGOUT')) {
+    logger.warn('Session unlinked/logged out. Clearing .wwebjs_auth directory...');
+    try {
+      fs.rmSync('.wwebjs_auth', { recursive: true, force: true });
+    } catch (e) {}
+    process.exit(0);
+  }
 });
 
 // ── Event: Message Created ────────────────────────────────────────
