@@ -37,6 +37,15 @@ async function deleteMatchedMessage(message) {
 
   // Step 1: Attempt deletion IMMEDIATELY (< 50ms fast path)
   try {
+    const chat = await message.getChat();
+    if (chat && chat.isGroup && Array.isArray(chat.participants) && message.client && message.client.info) {
+      const botWid = message.client.info.wid._serialized;
+      const botParticipant = chat.participants.find(p => p.id._serialized === botWid);
+      const isBotAdmin = Boolean(botParticipant && (botParticipant.isAdmin || botParticipant.isSuperAdmin));
+      if (!isBotAdmin && !message.fromMe) {
+        logger.warn(`[ADMIN REQUIRED] Bot is NOT an Admin in group "${chat.name || 'Group'}". Non-admin accounts cannot delete other members' messages.`);
+      }
+    }
     await message.delete(true);
     deleteSuccess = true;
   } catch (err) {
