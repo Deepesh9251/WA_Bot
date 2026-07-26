@@ -262,6 +262,7 @@ async function startBot() {
     const store = new MongoStore({ mongoose });
     authStrategy = new RemoteAuth({
       clientId: 'wa-link-deleter-session',
+      dataPath: './',
       store: store,
       backupSyncIntervalMs: 60000
     });
@@ -311,7 +312,8 @@ client.on('qr', async (qr) => {
   } catch (e) {}
 
   if (!hasLoggedQrNotice) {
-    logger.info('QR Code ready — scan cleanly at app URL (https://wa-bot-rc6r.onrender.com)');
+    const displayUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+    logger.info(`QR Code ready — scan cleanly at: ${displayUrl}`);
     hasLoggedQrNotice = true;
   }
 });

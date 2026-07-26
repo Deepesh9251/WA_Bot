@@ -42,30 +42,58 @@ async function deleteMatchedMessage(message) {
   } catch (err) {
     // Fallback: Direct Cmd.sendRevokeMsgs call with WAWeb 2.3000+ support
     try {
-      const revoked = await message.client.pupPage.evaluate(async (targetId) => {
-        const collections = window.require && window.require('WAWebCollections');
-        if (!collections) return false;
-        const msg = collections.Msg ? (collections.Msg.get(targetId) || (await collections.Msg.getMessagesById([targetId]))?.messages?.[0]) : null;
-        if (!msg) return false;
-        let chat = collections.Chat ? (collections.Chat.get(msg.id.remote) || (await collections.Chat.find(msg.id.remote))) : null;
-        if (!chat) return false;
-
-        const cmdObj = window.require && window.require('WAWebCmd');
-        const Cmd = cmdObj ? cmdObj.Cmd : null;
-        if (Cmd && Cmd.sendRevokeMsgs) {
-          const isNewVersion = window.WWebJS && window.WWebJS.compareWwebVersions && window.WWebJS.compareWwebVersions(window.Debug.VERSION, '>=', '2.3000.0');
-          if (isNewVersion) {
-            await Cmd.sendRevokeMsgs(chat, { list: [msg], type: 'message' }, { clearMedia: true, type: 'Admin' });
-          } else {
-            await Cmd.sendRevokeMsgs(chat, [msg], { clearMedia: true, type: 'Admin' });
+      const revoked = await message.client.pupPage.evaluate(async (msgObj) => {
+        try {
+          const collections = window.require && window.require('WAWebCollections');
+          if (!collections) return 'WAWebCollections unavailable';
+          
+          let targetId = msgObj._serialized || msgObj.id;
+          let msg = collections.Msg ? collections.Msg.get(targetId) : null;
+          if (!msg && collections.Msg && collections.Msg._models) {
+            msg = collections.Msg._models.find(m => m.id._serialized === targetId || m.id.id === msgObj.id);
           }
-          return true;
+          
+          if (!msg && collections.Chat) {
+            const chatJid = msgObj.remote || msgObj.from;
+            let chatObj = collections.Chat.get(chatJid);
+            if (chatObj && chatObj.msgs && chatObj.msgs._models) {
+              msg = chatObj.msgs._models.find(m => m.id.id === msgObj.id || m.id._serialized === targetId);
+            }
+          }
+
+          if (msg) {
+            let chat = collections.Chat ? collections.Chat.get(msg.id.remote) : null;
+            if (!chat && collections.Chat && collections.Chat.find) {
+              chat = await collections.Chat.find(msg.id.remote);
+            }
+            const cmdObj = window.require && window.require('WAWebCmd');
+            const Cmd = cmdObj ? (cmdObj.Cmd || cmdObj) : null;
+            if (chat && Cmd && Cmd.sendRevokeMsgs) {
+              const isNewVersion = window.WWebJS && window.WWebJS.compareWwebVersions && window.WWebJS.compareWwebVersions(window.Debug.VERSION, '>=', '2.3000.0');
+              if (isNewVersion) {
+                await Cmd.sendRevokeMsgs(chat, { list: [msg], type: 'message' }, { clearMedia: true, type: 'Admin' });
+              } else {
+                await Cmd.sendRevokeMsgs(chat, [msg], { clearMedia: true, type: 'Admin' });
+              }
+              return true;
+            }
+            return 'Cmd.sendRevokeMsgs unavailable';
+          }
+          return `Msg not found in DOM cache (${targetId})`;
+        } catch (e) {
+          return e.message || String(e);
         }
-        return false;
-      }, msgSerializedId);
-      deleteSuccess = Boolean(revoked);
-      if (!deleteSuccess) {
-        throw new Error('Revoke capability check pending');
+      }, message.id);
+
+      if (revoked === true) {
+        deleteSuccess = true;
+      } else {
+        deleteSuccess = false;
+        logger.error(`Fallback deletion result: ${revoked}`);
+        await sendTelegramAlert(
+          `⚠️ Failed to delete an Instagram link.\n` +
+          `Error: ${revoked}`
+        );
       }
     } catch (fallbackErr) {
       deleteSuccess = false;
