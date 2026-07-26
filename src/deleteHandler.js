@@ -39,14 +39,29 @@ async function deleteMatchedMessage(message) {
   let groupName = 'Group';
   try {
     const chat = await message.getChat();
-    if (chat && (chat.name || chat.formattedTitle)) {
-      groupName = chat.name || chat.formattedTitle;
+    if (chat && chat.name) {
+      groupName = chat.name;
+    } else if (chat && chat.formattedTitle) {
+      groupName = chat.formattedTitle;
+    } else if (message._data?.chat?.name) {
+      groupName = message._data.chat.name;
     }
-  } catch (e) {
-    groupName = message.from ? message.from.split('@')[0] : 'Group';
+  } catch (e) {}
+
+  // If groupName is purely digits (e.g. JID number like 120363...), fallback to 'Group'
+  if (!groupName || /^\d+$/.test(groupName.trim())) {
+    groupName = 'Group';
   }
 
-  let senderName = message._data?.pushname || message._data?.notifyName || (message.author ? message.author.split('@')[0] : (message.from ? message.from.split('@')[0] : 'Sender'));
+  let senderName = 'Sender';
+  if (message.fromMe) {
+    senderName = 'Bot (You)';
+  } else {
+    senderName = message._data?.pushname || message._data?.notifyName || (message.author ? message.author.split('@')[0] : 'Sender');
+    if (/^\d+$/.test(senderName)) {
+      senderName = `+${senderName}`;
+    }
+  }
   const sentTime = message.timestamp ? new Date(message.timestamp * 1000).toLocaleTimeString() : new Date().toLocaleTimeString();
 
   // Step 1: Attempt deletion (Fast path: standard delete, Fallback: direct evaluate)

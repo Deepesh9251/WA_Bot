@@ -353,14 +353,11 @@ client.on('ready', async () => {
     // If specific target groups are specified, enforce the filter
     if (targetGroupIds && !targetGroupIds.includes(message.from)) return;
 
-    // Guard 2: Never try to delete the bot's own messages
-    if (message.fromMe) return;
-
-    // Guard 3: Only act on text messages (ignore media-only messages with no caption)
+    // Guard 2: Only act on text messages (ignore media-only messages with no caption)
     const body = message.body || '';
 
     if (isInstagramLinkOnly(body)) {
-      logger.info(`Instagram-only link detected from ${message.author || message.from} — deleting...`);
+      logger.info('Instagram-only link detected — deleting...');
       await deleteMatchedMessage(message);
     }
   });
