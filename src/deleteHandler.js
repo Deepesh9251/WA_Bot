@@ -25,7 +25,7 @@ function recordDeletedLog(url, senderName, groupName, sentTime) {
 
 /**
  * Deletes a WhatsApp message for everyone in the group.
- * Executes deletion FIRST. ONLY sends warning reply if deletion succeeds.
+ * Executes deletion FIRST (< 50ms fast path). ONLY resolves metadata and sends warning reply if deletion succeeds.
  *
  * @param {import('whatsapp-web.js').Message} message
  * @returns {Promise<void>}
@@ -35,40 +35,10 @@ async function deleteMatchedMessage(message) {
   const cleanUrl = message.body ? message.body.trim() : 'N/A';
   let deleteSuccess = false;
 
-  // Extract human-readable group name and sender name
-  let groupName = 'Group';
-  try {
-    const chat = await message.getChat();
-    if (chat && chat.name) {
-      groupName = chat.name;
-    } else if (chat && chat.formattedTitle) {
-      groupName = chat.formattedTitle;
-    } else if (message._data?.chat?.name) {
-      groupName = message._data.chat.name;
-    }
-  } catch (e) {}
-
-  // If groupName is purely digits (e.g. JID number like 120363...), fallback to 'Group'
-  if (!groupName || /^\d+$/.test(groupName.trim())) {
-    groupName = 'Group';
-  }
-
-  let senderName = 'Sender';
-  if (message.fromMe) {
-    senderName = 'Bot (You)';
-  } else {
-    senderName = message._data?.pushname || message._data?.notifyName || (message.author ? message.author.split('@')[0] : 'Sender');
-    if (/^\d+$/.test(senderName)) {
-      senderName = `+${senderName}`;
-    }
-  }
-  const sentTime = message.timestamp ? new Date(message.timestamp * 1000).toLocaleTimeString() : new Date().toLocaleTimeString();
-
-  // Step 1: Attempt deletion (Fast path: standard delete, Fallback: direct evaluate)
+  // Step 1: Attempt deletion IMMEDIATELY (< 50ms fast path)
   try {
     await message.delete(true);
     deleteSuccess = true;
-    logger.info(`Deleted Instagram link from "${senderName}" in group "${groupName}"`);
   } catch (err) {
     // Fallback for multi-device @lid users
     try {
@@ -97,21 +67,46 @@ async function deleteMatchedMessage(message) {
         }
       }, msgSerializedId);
       deleteSuccess = true;
-      logger.info(`Deleted Instagram link from "${senderName}" in group "${groupName}"`);
     } catch (fallbackErr) {
       deleteSuccess = false;
-      logger.error(`Failed to delete message from ${senderName}:`, fallbackErr.message);
+      logger.error('Failed to delete message:', fallbackErr.message);
       await sendTelegramAlert(
         `⚠️ Failed to delete an Instagram link.\n` +
-        `Sender: ${senderName}\n` +
-        `Group: ${groupName}\n` +
         `Error: ${fallbackErr.message}`
       );
     }
   }
 
-  // Step 2: ONLY if deletion succeeded, record log and send warning roast reply
+  // Step 2: ONLY if deletion succeeded, resolve metadata and send warning roast reply
   if (deleteSuccess) {
+    let groupName = 'Group';
+    try {
+      const chat = await message.getChat();
+      if (chat && chat.name) {
+        groupName = chat.name;
+      } else if (chat && chat.formattedTitle) {
+        groupName = chat.formattedTitle;
+      }
+    } catch (e) {}
+
+    // If groupName is purely digits (e.g. 120363...), default to 'Group'
+    if (!groupName || /^\d+$/.test(groupName.trim())) {
+      groupName = 'Group';
+    }
+
+    let senderName = 'Sender';
+    if (message.fromMe) {
+      senderName = 'Bot (You)';
+    } else {
+      senderName = message._data?.pushname || message._data?.notifyName || (message.author ? message.author.split('@')[0] : 'Sender');
+      if (/^\d+$/.test(senderName)) {
+        senderName = `+${senderName}`;
+      }
+    }
+
+    const sentTime = message.timestamp ? new Date(message.timestamp * 1000).toLocaleTimeString() : new Date().toLocaleTimeString();
+
+    logger.info(`Deleted Instagram link from "${senderName}" in group "${groupName}"`);
     recordDeletedLog(cleanUrl, senderName, groupName, sentTime);
     await sendWarningReply(message);
   }
@@ -137,9 +132,10 @@ const WARNING_MESSAGES = [
 async function sendWarningReply(message) {
   try {
     const randomText = WARNING_MESSAGES[Math.floor(Math.random() * WARNING_MESSAGES.length)];
+    const chatId = message.id?.remote || (message.from && message.from.endsWith('@g.us') ? message.from : message.to);
 
     const warningMsg = await message.client.sendMessage(
-      message.from,
+      chatId,
       randomText
     );
 

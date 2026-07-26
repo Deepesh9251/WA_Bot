@@ -343,24 +343,37 @@ client.on('ready', async () => {
 
   // Start the dead-man's-switch heartbeat only after we're confirmed connected
   startHeartbeat();
+});
 
-  // ── Event: Message Created ────────────────────────────────────────
-  // Fires for ALL messages seen by the client, including the bot's own.
-  client.on('message_create', async (message) => {
-    // Guard 1: Must be a group message (JID ends with @g.us)
-    if (!message.from || !message.from.endsWith('@g.us')) return;
+// ── Event: Disconnected ───────────────────────────────────────────
+client.on('disconnected', async (reason) => {
+  logger.warn(`WhatsApp client disconnected: ${reason}`);
+  await sendTelegramAlert(`⚠️ WhatsApp bot disconnected: ${reason}`);
+});
 
-    // If specific target groups are specified, enforce the filter
-    if (targetGroupIds && !targetGroupIds.includes(message.from)) return;
+// ── Event: Message Created ────────────────────────────────────────
+// Fires for ALL messages seen by the client, including the bot's own.
+client.on('message_create', async (message) => {
+  // Extract target group JID (chatId)
+  // For incoming messages, message.from is group JID (ends with @g.us).
+  // For self-sent messages (fromMe), message.from is user JID and message.to / message.id.remote is group JID.
+  const chatId = message.id?.remote || (message.from && message.from.endsWith('@g.us') ? message.from : message.to);
+  if (!chatId || !chatId.endsWith('@g.us')) return;
 
-    // Guard 2: Only act on text messages (ignore media-only messages with no caption)
-    const body = message.body || '';
+  // If specific target groups are specified, enforce the filter
+  const targetGroupIds = config.targetGroupId && config.targetGroupId !== 'ALL' && config.targetGroupId !== '*'
+    ? config.targetGroupId.split(',').map((s) => s.trim())
+    : null; // null means monitor ALL groups
 
-    if (isInstagramLinkOnly(body)) {
-      logger.info('Instagram-only link detected — deleting...');
-      await deleteMatchedMessage(message);
-    }
-  });
+  if (targetGroupIds && !targetGroupIds.includes(chatId)) return;
+
+  // Guard 2: Only act on text messages (ignore media-only messages with no caption)
+  const body = message.body || '';
+
+  if (isInstagramLinkOnly(body)) {
+    logger.info('Instagram-only link detected — deleting...');
+    await deleteMatchedMessage(message);
+  }
 });
 
 // ── Start the client ──────────────────────────────────────────────
