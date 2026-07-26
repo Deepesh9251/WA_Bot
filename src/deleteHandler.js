@@ -40,41 +40,12 @@ async function deleteMatchedMessage(message) {
     await message.delete(true);
     deleteSuccess = true;
   } catch (err) {
-    // Fallback for multi-device @lid users
-    try {
-      await message.client.pupPage.evaluate(async (targetId) => {
-        const Collections = window.require('WAWebCollections');
-        const MsgStore = Collections.Msg;
-        const ChatStore = Collections.Chat;
-        const { Cmd } = window.require('WAWebCmd');
-
-        let msg = MsgStore.get(targetId);
-        if (!msg && MsgStore._models) {
-          msg = MsgStore._models.find(m => m.id._serialized === targetId || m.id.id === targetId || m.id === targetId);
-        }
-        if (msg) {
-          let chat = ChatStore.get(msg.id.remote);
-          if (!chat && ChatStore.find) {
-            chat = await ChatStore.find(msg.id.remote);
-          }
-          if (chat && Cmd && Cmd.sendRevokeMsgs) {
-            try {
-              await Cmd.sendRevokeMsgs(chat, { list: [msg], type: 'message' }, { clearMedia: true, type: 'Admin' });
-            } catch (e1) {
-              await Cmd.sendRevokeMsgs(chat, [msg], { clearMedia: true, type: 'Admin' });
-            }
-          }
-        }
-      }, msgSerializedId);
-      deleteSuccess = true;
-    } catch (fallbackErr) {
-      deleteSuccess = false;
-      logger.error('Failed to delete message:', fallbackErr.message);
-      await sendTelegramAlert(
-        `⚠️ Failed to delete an Instagram link.\n` +
-        `Error: ${fallbackErr.message}`
-      );
-    }
+    deleteSuccess = false;
+    logger.error('Failed to delete message:', err.message);
+    await sendTelegramAlert(
+      `⚠️ Failed to delete an Instagram link.\n` +
+      `Error: ${err.message}`
+    );
   }
 
   // Step 2: ONLY if deletion succeeded, resolve metadata and send warning roast reply
