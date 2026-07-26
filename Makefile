@@ -23,12 +23,9 @@ help:
 	@echo ""
 
 dev:
-	-pm2 stop wa-link-deleter 2>/dev/null
-	-pkill -9 -f chromium 2>/dev/null
-	-pkill -9 -f chrome 2>/dev/null
-	-fuser -k 3000/tcp 2>/dev/null
-	-find .wwebjs_auth -name "Singleton*" -delete 2>/dev/null
-	node src/index.js
+	@echo "🐳 Building & running Dev Container locally on port 3000..."
+	sudo docker build -t wa-bot:dev .
+	sudo docker run --rm -it --name wa-bot-dev -p 3000:3000 -e APP_ENV=DEV -e NODE_ENV=development -e PORT=3000 --env-file .env wa-bot:dev
 
 stage:
 	@echo "🐳 Building & running Render 512MB Staging Container locally..."
