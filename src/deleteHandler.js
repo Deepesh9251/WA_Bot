@@ -24,34 +24,6 @@ function recordDeletedLog(url, senderName, groupName, sentTime) {
 }
 
 /**
- * Verifies whether a message has actually been revoked in WhatsApp Web DOM.
- * @param {import('whatsapp-web.js').Message} message
- * @returns {Promise<boolean>}
- */
-async function verifyMessageRevoked(message) {
-  try {
-    const isRevoked = await message.client.pupPage.evaluate((msgObj) => {
-      try {
-        const collections = window.require && window.require('WAWebCollections');
-        if (!collections || !collections.Msg) return false;
-        let targetId = msgObj._serialized || msgObj.id;
-        let msg = collections.Msg.get(targetId);
-        if (!msg && collections.Msg._models) {
-          msg = collections.Msg._models.find(m => m.id._serialized === targetId || m.id.id === msgObj.id);
-        }
-        if (msg) {
-          return msg.type === 'revoked' || msg.isRevoked === true || Boolean(msg.isRevoked);
-        }
-      } catch (e) {}
-      return false;
-    }, message.id);
-    return Boolean(isRevoked);
-  } catch (e) {
-    return false;
-  }
-}
-
-/**
  * Handles deletion of a detected Instagram link message.
  *
  * @param {import('whatsapp-web.js').Message} message
@@ -62,66 +34,16 @@ async function deleteMatchedMessage(message) {
   const cleanUrl = message.body ? message.body.trim() : 'N/A';
   let deleteSuccess = false;
 
-  // Step 1: Attempt standard deletion (< 50ms fast path)
   try {
     await message.delete(true);
     deleteSuccess = true;
   } catch (err) {
-    // Step 2: Fallback to direct Cmd.sendRevokeMsgs call with WAWeb 2.3000+ support
-    try {
-      await message.client.pupPage.evaluate(async (msgObj) => {
-        try {
-          const collections = window.require && window.require('WAWebCollections');
-          if (!collections) return false;
-          
-          let targetId = msgObj._serialized || msgObj.id;
-          let msg = collections.Msg ? collections.Msg.get(targetId) : null;
-          if (!msg && collections.Msg && collections.Msg._models) {
-            msg = collections.Msg._models.find(m => m.id._serialized === targetId || m.id.id === msgObj.id);
-          }
-          
-          if (!msg && collections.Chat) {
-            const chatJid = msgObj.remote || msgObj.from;
-            let chatObj = collections.Chat.get(chatJid);
-            if (chatObj && chatObj.msgs && chatObj.msgs._models) {
-              msg = chatObj.msgs._models.find(m => m.id.id === msgObj.id || m.id._serialized === targetId);
-            }
-          }
-
-          if (msg) {
-            let chat = collections.Chat ? collections.Chat.get(msg.id.remote) : null;
-            if (!chat && collections.Chat && collections.Chat.find) {
-              chat = await collections.Chat.find(msg.id.remote);
-            }
-            const cmdObj = window.require && window.require('WAWebCmd');
-            const Cmd = cmdObj ? (cmdObj.Cmd || cmdObj) : null;
-            if (chat && Cmd && Cmd.sendRevokeMsgs) {
-              const isNewVersion = window.WWebJS && window.WWebJS.compareWwebVersions && window.WWebJS.compareWwebVersions(window.Debug.VERSION, '>=', '2.3000.0');
-              if (isNewVersion) {
-                await Cmd.sendRevokeMsgs(chat, { list: [msg], type: 'message' }, { clearMedia: true, type: 'Admin' });
-              } else {
-                await Cmd.sendRevokeMsgs(chat, [msg], { clearMedia: true, type: 'Admin' });
-              }
-              return true;
-            }
-          }
-        } catch (e) {}
-        return false;
-      }, message.id);
-
-      // Brief 100ms pause for WebSocket revocation frame to process
-      await new Promise((r) => setTimeout(r, 100));
-      deleteSuccess = await verifyMessageRevoked(message);
-    } catch (fallbackErr) {
-      deleteSuccess = false;
-    }
-  }
-
-  if (!deleteSuccess) {
-    logger.error(`Failed to delete message: Message revocation unconfirmed in WhatsApp Web`);
+    deleteSuccess = false;
+    const errorDetails = (err && err.message) ? err.message : String(err || 'Unknown error');
+    logger.error(`Failed to delete message: ${errorDetails}`);
     await sendTelegramAlert(
       `⚠️ Failed to delete an Instagram link.\n` +
-      `Error: Message revocation unconfirmed`
+      `Error: ${errorDetails}`
     );
   }
 
