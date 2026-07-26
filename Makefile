@@ -2,7 +2,7 @@
 # Makefile — Shorthand commands for WhatsApp Link Deleter Bot
 # ──────────────────────────────────────────────────────────────────
 
-.PHONY: start stop restart status logs discover test dev stage help
+.PHONY: start stop stop-dev stop-stage restart status logs discover test dev stage help
 
 # Ensure npm global binaries (pm2) are on PATH
 export PATH := $(HOME)/.npm-global/bin:$(PATH)
@@ -11,15 +11,17 @@ help:
 	@echo ""
 	@echo " WhatsApp Link Deleter Bot — Available Commands:"
 	@echo " ────────────────────────────────────────────────"
-	@echo "  make dev       - Run bot locally in foreground for testing"
-	@echo "  make stage     - Run 512MB Docker container staging (exact Render match)"
-	@echo "  make start     - Start bot under pm2"
-	@echo "  make stop      - Stop bot"
-	@echo "  make restart   - Cleanly restart bot (clears lock files)"
-	@echo "  make status    - Show pm2 process status"
-	@echo "  make logs      - Stream live bot logs"
-	@echo "  make discover  - Run group discovery tool"
-	@echo "  make test      - Run link detector test suite"
+	@echo "  make dev        - Run bot in Dev Docker container (port 3000)"
+	@echo "  make stage      - Run bot in 512MB Render Staging container (port 10000)"
+	@echo "  make stop       - Stop all bot processes & containers"
+	@echo "  make stop-dev   - Stop local dev container"
+	@echo "  make stop-stage - Stop local stage container"
+	@echo "  make start      - Start bot under pm2"
+	@echo "  make restart    - Cleanly restart bot (clears lock files)"
+	@echo "  make status     - Show pm2 process status"
+	@echo "  make logs       - Stream live bot logs"
+	@echo "  make discover   - Run group discovery tool"
+	@echo "  make test       - Run link detector test suite"
 	@echo ""
 
 dev:
@@ -37,11 +39,20 @@ stage:
 start:
 	pm2 start ecosystem.config.js
 
-stop:
+stop-dev:
+	-sudo docker stop wa-bot-dev 2>/dev/null
+	-sudo docker rm -f wa-bot-dev 2>/dev/null
+
+stop-stage:
+	-sudo docker stop wa-bot-stage 2>/dev/null
+	-sudo docker rm -f wa-bot-stage 2>/dev/null
+
+stop: stop-dev stop-stage
 	-pm2 stop wa-link-deleter 2>/dev/null
 	-pkill -9 -f chromium 2>/dev/null
 	-pkill -9 -f chrome 2>/dev/null
 	-fuser -k 3000/tcp 2>/dev/null
+	-fuser -k 10000/tcp 2>/dev/null
 	-find .wwebjs_auth -name "Singleton*" -delete 2>/dev/null
 
 restart:
