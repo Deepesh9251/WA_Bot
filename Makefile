@@ -32,8 +32,8 @@ dev:
 
 stage:
 	@echo "🐳 Building & running Render 512MB Staging Container locally..."
-	docker build -t wa-bot:staging .
-	docker run --rm -it --name wa-bot-stage --memory=512m -p 10000:10000 --env-file .env wa-bot:staging
+	sudo docker build -t wa-bot:staging .
+	sudo docker run --rm -it --name wa-bot-stage --memory=512m -p 10000:10000 --env-file .env wa-bot:staging
 
 start:
 	pm2 start ecosystem.config.js
