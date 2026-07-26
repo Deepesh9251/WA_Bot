@@ -249,7 +249,7 @@ http.createServer(async (req, res) => {
 });
 
 const { Client, LocalAuth, RemoteAuth } = require('whatsapp-web.js');
-const { MongoStore } = require('wwebjs-mongo');
+const CustomMongoStore = require('./mongoStore');
 const mongoose = require('mongoose');
 
 // ── WhatsApp Client Setup ─────────────────────────────────────────
@@ -259,7 +259,7 @@ async function startBot() {
     logger.info('Connecting to MongoDB for persistent RemoteAuth cloud session storage...');
     await mongoose.connect(config.mongoUri);
     logger.info('MongoDB connected successfully ✅');
-    const store = new MongoStore({ mongoose });
+    const store = new CustomMongoStore({ mongoose });
     authStrategy = new RemoteAuth({
       clientId: 'wa-link-deleter-session',
       dataPath: './',
@@ -285,7 +285,9 @@ const client = new Client({
       '--no-first-run',
       '--no-zygote',
       '--single-process',
+      '--renderer-process-limit=1',
       '--disable-gpu',
+      '--disable-gpu-shader-disk-cache',
       '--disable-extensions',
       '--disable-site-isolation-trials',
       '--disable-background-timer-throttling',
@@ -297,7 +299,7 @@ const client = new Client({
       '--disable-renderer-backgrounding',
       '--metrics-recording-only',
       '--mute-audio',
-      '--js-flags=--max-old-space-size=180',
+      '--js-flags=--max-old-space-size=150',
     ],
   },
 });
