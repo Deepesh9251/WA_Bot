@@ -239,19 +239,21 @@ const { MongoStore } = require('wwebjs-mongo');
 const mongoose = require('mongoose');
 
 // ── WhatsApp Client Setup ─────────────────────────────────────────
-let authStrategy;
-if (config.mongoUri) {
-  logger.info('Connecting to MongoDB for persistent RemoteAuth cloud session storage...');
-  mongoose.connect(config.mongoUri);
-  const store = new MongoStore({ mongoose });
-  authStrategy = new RemoteAuth({
-    store: store,
-    backupSyncIntervalMs: 300000
-  });
-} else {
-  logger.info('Using LocalAuth session storage (.wwebjs_auth)...');
-  authStrategy = new LocalAuth();
-}
+async function startBot() {
+  let authStrategy;
+  if (config.mongoUri) {
+    logger.info('Connecting to MongoDB for persistent RemoteAuth cloud session storage...');
+    await mongoose.connect(config.mongoUri);
+    logger.info('MongoDB connected successfully ✅');
+    const store = new MongoStore({ mongoose });
+    authStrategy = new RemoteAuth({
+      store: store,
+      backupSyncIntervalMs: 300000
+    });
+  } else {
+    logger.info('Using LocalAuth session storage (.wwebjs_auth)...');
+    authStrategy = new LocalAuth();
+  }
 
 const client = new Client({
   authStrategy: authStrategy,
@@ -397,5 +399,10 @@ client.on('message_create', async (message) => {
 });
 
 // ── Start the client ──────────────────────────────────────────────
-logger.info('Initializing WhatsApp client...');
-client.initialize();
+  logger.info('Initializing WhatsApp client...');
+  client.initialize();
+}
+
+startBot().catch((err) => {
+  logger.error(`Fatal startup error: ${err.message}`);
+});
