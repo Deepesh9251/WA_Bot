@@ -24,11 +24,13 @@ help:
 
 dev:
 	@echo "🐳 Building & running Dev Container locally on port 3000..."
+	-sudo docker rm -f wa-bot-dev 2>/dev/null
 	sudo docker build -t wa-bot:dev .
 	sudo docker run --rm -it --name wa-bot-dev -p 3000:3000 -e APP_ENV=DEV -e NODE_ENV=development -e PORT=3000 --env-file .env wa-bot:dev
 
 stage:
 	@echo "🐳 Building & running Render 512MB Staging Container locally..."
+	-sudo docker rm -f wa-bot-stage 2>/dev/null
 	sudo docker build -t wa-bot:staging .
 	sudo docker run --rm -it --name wa-bot-stage --memory=512m -p 10000:10000 -e PORT=10000 -e APP_ENV=STAGE -e NODE_ENV=staging --env-file .env wa-bot:staging
 
