@@ -37,25 +37,45 @@ async function deleteMatchedMessage(message) {
 
   // Step 1: Attempt deletion IMMEDIATELY (< 50ms fast path)
   try {
-    const chat = await message.getChat();
-    if (chat && chat.isGroup && Array.isArray(chat.participants) && message.client && message.client.info) {
-      const botWid = message.client.info.wid._serialized;
-      const botParticipant = chat.participants.find(p => p.id._serialized === botWid);
-      const isBotAdmin = Boolean(botParticipant && (botParticipant.isAdmin || botParticipant.isSuperAdmin));
-      if (!isBotAdmin && !message.fromMe) {
-        logger.warn(`[ADMIN REQUIRED] Bot is NOT an Admin in group "${chat.name || 'Group'}". Non-admin accounts cannot delete other members' messages.`);
-      }
-    }
     await message.delete(true);
     deleteSuccess = true;
   } catch (err) {
-    deleteSuccess = false;
-    const errorDetails = err && err.message ? err.message : String(err);
-    logger.error(`Failed to delete message: ${errorDetails}`);
-    await sendTelegramAlert(
-      `⚠️ Failed to delete an Instagram link.\n` +
-      `Error: ${errorDetails}`
-    );
+    // Fallback: Direct Cmd.sendRevokeMsgs call with WAWeb 2.3000+ support
+    try {
+      const revoked = await message.client.pupPage.evaluate(async (targetId) => {
+        const collections = window.require && window.require('WAWebCollections');
+        if (!collections) return false;
+        const msg = collections.Msg ? (collections.Msg.get(targetId) || (await collections.Msg.getMessagesById([targetId]))?.messages?.[0]) : null;
+        if (!msg) return false;
+        let chat = collections.Chat ? (collections.Chat.get(msg.id.remote) || (await collections.Chat.find(msg.id.remote))) : null;
+        if (!chat) return false;
+
+        const cmdObj = window.require && window.require('WAWebCmd');
+        const Cmd = cmdObj ? cmdObj.Cmd : null;
+        if (Cmd && Cmd.sendRevokeMsgs) {
+          const isNewVersion = window.WWebJS && window.WWebJS.compareWwebVersions && window.WWebJS.compareWwebVersions(window.Debug.VERSION, '>=', '2.3000.0');
+          if (isNewVersion) {
+            await Cmd.sendRevokeMsgs(chat, { list: [msg], type: 'message' }, { clearMedia: true, type: 'Admin' });
+          } else {
+            await Cmd.sendRevokeMsgs(chat, [msg], { clearMedia: true, type: 'Admin' });
+          }
+          return true;
+        }
+        return false;
+      }, msgSerializedId);
+      deleteSuccess = Boolean(revoked);
+      if (!deleteSuccess) {
+        throw new Error('Revoke capability check pending');
+      }
+    } catch (fallbackErr) {
+      deleteSuccess = false;
+      const errorDetails = (fallbackErr && fallbackErr.message) ? fallbackErr.message : String(fallbackErr || err || 'Unknown');
+      logger.error(`Failed to delete message: ${errorDetails}`);
+      await sendTelegramAlert(
+        `⚠️ Failed to delete an Instagram link.\n` +
+        `Error: ${errorDetails}`
+      );
+    }
   }
 
   // Step 2: ONLY if deletion succeeded, resolve metadata and send warning roast reply
