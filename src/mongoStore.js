@@ -1,4 +1,40 @@
 const fs = require('fs');
+const path = require('path');
+
+function pruneBrowserCache() {
+  try {
+    const authDir = './.wwebjs_auth';
+    if (!fs.existsSync(authDir)) return;
+
+    const cacheNames = [
+      'Cache',
+      'Code Cache',
+      'GPUCache',
+      'ShaderCache',
+      'CacheStorage',
+      'ScriptCache',
+    ];
+
+    function cleanDir(dirPath) {
+      if (!fs.existsSync(dirPath)) return;
+      const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+      for (const entry of entries) {
+        const fullPath = path.join(dirPath, entry.name);
+        if (entry.isDirectory()) {
+          if (cacheNames.includes(entry.name)) {
+            try {
+              fs.rmSync(fullPath, { recursive: true, force: true });
+            } catch (e) {}
+          } else {
+            cleanDir(fullPath);
+          }
+        }
+      }
+    }
+
+    cleanDir(authDir);
+  } catch (e) {}
+}
 
 /**
  * Custom MongoStore implementation for whatsapp-web.js RemoteAuth.
@@ -24,6 +60,9 @@ class CustomMongoStore {
   }
 
   async save(options) {
+    // Prune useless Chromium cache files before compressing/uploading to keep RAM < 200MB
+    pruneBrowserCache();
+
     const bucket = new this.mongoose.mongo.GridFSBucket(this.mongoose.connection.db, {
       bucketName: `whatsapp-${options.session}`,
     });
@@ -63,7 +102,10 @@ class CustomMongoStore {
         .openDownloadStream(latestDoc._id)
         .pipe(fs.createWriteStream(options.path))
         .on('error', (err) => reject(err))
-        .on('finish', () => resolve());
+        .on('finish', () => {
+          pruneBrowserCache();
+          resolve();
+        });
     });
   }
 
