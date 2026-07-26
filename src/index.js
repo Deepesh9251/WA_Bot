@@ -264,7 +264,7 @@ async function startBot() {
       clientId: 'wa-link-deleter-session',
       dataPath: './',
       store: store,
-      backupSyncIntervalMs: 60000
+      backupSyncIntervalMs: 10000
     });
   } else {
     logger.info('Using LocalAuth session storage (.wwebjs_auth)...');
