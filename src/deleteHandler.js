@@ -6,14 +6,6 @@
 // Call deleteMatchedMessage(message) when a message has been
 // confirmed as an Instagram-only link. This module handles the
 // delete call and all error/alert logic around it.
-//
-// NOTE on delete-for-everyone:
-//   message.delete(true) deletes for everyone in the group.
-//   This only works if:
-//     1. The bot account is an ADMIN of the group.
-//     2. The message was sent recently (WhatsApp enforces a time window).
-//   If either condition is not met, the delete call throws — which
-//   we catch, log, and alert on.
 // ──────────────────────────────────────────────────────────────────
 
 const logger = require('./logger');
@@ -43,16 +35,25 @@ async function deleteMatchedMessage(message) {
   const cleanUrl = message.body ? message.body.trim() : 'N/A';
   let deleteSuccess = false;
 
-  // Extract rich metadata directly from message object in memory
+  // Extract human-readable group name and sender name
+  let groupName = 'Group';
+  try {
+    const chat = await message.getChat();
+    if (chat && (chat.name || chat.formattedTitle)) {
+      groupName = chat.name || chat.formattedTitle;
+    }
+  } catch (e) {
+    groupName = message.from ? message.from.split('@')[0] : 'Group';
+  }
+
   let senderName = message._data?.pushname || message._data?.notifyName || (message.author ? message.author.split('@')[0] : (message.from ? message.from.split('@')[0] : 'Sender'));
-  let groupName = message.from ? message.from.split('@')[0] : 'Group';
   const sentTime = message.timestamp ? new Date(message.timestamp * 1000).toLocaleTimeString() : new Date().toLocaleTimeString();
 
   // Step 1: Attempt deletion (Fast path: standard delete, Fallback: direct evaluate)
   try {
     await message.delete(true);
     deleteSuccess = true;
-    logger.info(`Deleted Instagram link [${cleanUrl}] from "${senderName}" in group "${groupName}"`);
+    logger.info(`Deleted Instagram link from "${senderName}" in group "${groupName}"`);
   } catch (err) {
     // Fallback for multi-device @lid users
     try {
@@ -81,7 +82,7 @@ async function deleteMatchedMessage(message) {
         }
       }, msgSerializedId);
       deleteSuccess = true;
-      logger.info(`Deleted Instagram link via direct fallback [${cleanUrl}] from "${senderName}" in group "${groupName}"`);
+      logger.info(`Deleted Instagram link from "${senderName}" in group "${groupName}"`);
     } catch (fallbackErr) {
       deleteSuccess = false;
       logger.error(`Failed to delete message from ${senderName}:`, fallbackErr.message);
