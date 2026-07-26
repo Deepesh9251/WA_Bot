@@ -26,6 +26,20 @@ const { deleteMatchedMessage, recentDeletedLogs } = require('./deleteHandler');
 const { sendTelegramAlert } = require('./alerts/telegram');
 const { startHeartbeat } = require('./alerts/healthcheck');
 
+// ── Global Process Safety Handlers ─────────────────────────────────
+// Prevents container crash from background file stream events (e.g., RemoteAuth.zip)
+process.on('uncaughtException', (err) => {
+  if (err && (err.code === 'ENOENT' || (err.message && err.message.includes('RemoteAuth')))) {
+    logger.warn(`Handled background RemoteAuth sync file notice: ${err.message}`);
+    return;
+  }
+  logger.error(`Uncaught exception: ${err.stack || err.message}`);
+});
+
+process.on('unhandledRejection', (reason) => {
+  logger.warn(`Unhandled rejection: ${reason && reason.stack ? reason.stack : reason}`);
+});
+
 // ── HTTP Keep-Alive & Web Dashboard Server ────────────────────────
 let latestQrDataUrl = null;
 let botStatus = 'INITIALIZING'; // INITIALIZING | QR_READY | AUTHENTICATED
