@@ -261,8 +261,9 @@ async function startBot() {
     logger.info('MongoDB connected successfully ✅');
     const store = new MongoStore({ mongoose });
     authStrategy = new RemoteAuth({
+      clientId: 'wa-link-deleter-session',
       store: store,
-      backupSyncIntervalMs: 300000
+      backupSyncIntervalMs: 60000
     });
   } else {
     logger.info('Using LocalAuth session storage (.wwebjs_auth)...');
@@ -313,6 +314,11 @@ client.on('qr', async (qr) => {
     logger.info('QR Code ready — scan cleanly at app URL (https://wa-bot-rc6r.onrender.com)');
     hasLoggedQrNotice = true;
   }
+});
+
+// ── Event: Remote Session Saved ───────────────────────────────────
+client.on('remote_session_saved', () => {
+  logger.info('Cloud session successfully saved to MongoDB Atlas! ✅');
 });
 
 // ── Event: Ready ──────────────────────────────────────────────────
