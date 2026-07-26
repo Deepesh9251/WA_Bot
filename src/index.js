@@ -422,7 +422,17 @@ client.on('message_create', async (message) => {
 
 // ── Start the client ──────────────────────────────────────────────
   logger.info('Initializing WhatsApp client...');
-  client.initialize();
+  try {
+    await client.initialize();
+  } catch (initErr) {
+    if (String(initErr.message || initErr).includes('Execution context was destroyed')) {
+      logger.warn('Browser execution context reloaded mid-start. Retrying client initialization in 2 seconds...');
+      await new Promise((r) => setTimeout(r, 2000));
+      await client.initialize();
+    } else {
+      throw initErr;
+    }
+  }
 }
 
 startBot().catch((err) => {
