@@ -24,8 +24,35 @@ function recordDeletedLog(url, senderName, groupName, sentTime) {
 }
 
 /**
- * Deletes a WhatsApp message for everyone in the group.
- * Executes deletion FIRST (< 50ms fast path). ONLY resolves metadata and sends warning reply if deletion succeeds.
+ * Verifies whether a message has actually been revoked in WhatsApp Web DOM.
+ * @param {import('whatsapp-web.js').Message} message
+ * @returns {Promise<boolean>}
+ */
+async function verifyMessageRevoked(message) {
+  try {
+    const isRevoked = await message.client.pupPage.evaluate((msgObj) => {
+      try {
+        const collections = window.require && window.require('WAWebCollections');
+        if (!collections || !collections.Msg) return false;
+        let targetId = msgObj._serialized || msgObj.id;
+        let msg = collections.Msg.get(targetId);
+        if (!msg && collections.Msg._models) {
+          msg = collections.Msg._models.find(m => m.id._serialized === targetId || m.id.id === msgObj.id);
+        }
+        if (msg) {
+          return msg.type === 'revoked' || msg.isRevoked === true || Boolean(msg.isRevoked);
+        }
+      } catch (e) {}
+      return false;
+    }, message.id);
+    return Boolean(isRevoked);
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Handles deletion of a detected Instagram link message.
  *
  * @param {import('whatsapp-web.js').Message} message
  * @returns {Promise<void>}
@@ -35,17 +62,21 @@ async function deleteMatchedMessage(message) {
   const cleanUrl = message.body ? message.body.trim() : 'N/A';
   let deleteSuccess = false;
 
-  // Step 1: Attempt deletion IMMEDIATELY (< 50ms fast path)
+  // Step 1: Attempt standard deletion (< 50ms fast path)
   try {
     await message.delete(true);
-    deleteSuccess = true;
-  } catch (err) {
-    // Fallback: Direct Cmd.sendRevokeMsgs call with WAWeb 2.3000+ support
+  } catch (err) {}
+
+  // Check empirical DOM revocation state
+  deleteSuccess = await verifyMessageRevoked(message);
+
+  // Step 2: Fallback to direct Cmd.sendRevokeMsgs call with WAWeb 2.3000+ support
+  if (!deleteSuccess) {
     try {
-      const revoked = await message.client.pupPage.evaluate(async (msgObj) => {
+      await message.client.pupPage.evaluate(async (msgObj) => {
         try {
           const collections = window.require && window.require('WAWebCollections');
-          if (!collections) return 'WAWebCollections unavailable';
+          if (!collections) return false;
           
           let targetId = msgObj._serialized || msgObj.id;
           let msg = collections.Msg ? collections.Msg.get(targetId) : null;
@@ -77,33 +108,25 @@ async function deleteMatchedMessage(message) {
               }
               return true;
             }
-            return 'Cmd.sendRevokeMsgs unavailable';
           }
-          return `Msg not found in DOM cache (${targetId})`;
-        } catch (e) {
-          return e.message || String(e);
-        }
+        } catch (e) {}
+        return false;
       }, message.id);
 
-      if (revoked === true) {
-        deleteSuccess = true;
-      } else {
-        deleteSuccess = false;
-        logger.error(`Fallback deletion result: ${revoked}`);
-        await sendTelegramAlert(
-          `⚠️ Failed to delete an Instagram link.\n` +
-          `Error: ${revoked}`
-        );
-      }
+      // Brief 150ms pause for WebSocket revocation frame to process
+      await new Promise((r) => setTimeout(r, 150));
+      deleteSuccess = await verifyMessageRevoked(message);
     } catch (fallbackErr) {
       deleteSuccess = false;
-      const errorDetails = (fallbackErr && fallbackErr.message) ? fallbackErr.message : String(fallbackErr || err || 'Unknown');
-      logger.error(`Failed to delete message: ${errorDetails}`);
-      await sendTelegramAlert(
-        `⚠️ Failed to delete an Instagram link.\n` +
-        `Error: ${errorDetails}`
-      );
     }
+  }
+
+  if (!deleteSuccess) {
+    logger.error(`Failed to delete message: Message revocation unconfirmed in WhatsApp Web`);
+    await sendTelegramAlert(
+      `⚠️ Failed to delete an Instagram link.\n` +
+      `Error: Message revocation unconfirmed`
+    );
   }
 
   // Step 2: ONLY if deletion succeeded, resolve metadata and send warning roast reply
