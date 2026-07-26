@@ -65,13 +65,9 @@ async function deleteMatchedMessage(message) {
   // Step 1: Attempt standard deletion (< 50ms fast path)
   try {
     await message.delete(true);
-  } catch (err) {}
-
-  // Check empirical DOM revocation state
-  deleteSuccess = await verifyMessageRevoked(message);
-
-  // Step 2: Fallback to direct Cmd.sendRevokeMsgs call with WAWeb 2.3000+ support
-  if (!deleteSuccess) {
+    deleteSuccess = true;
+  } catch (err) {
+    // Step 2: Fallback to direct Cmd.sendRevokeMsgs call with WAWeb 2.3000+ support
     try {
       await message.client.pupPage.evaluate(async (msgObj) => {
         try {
@@ -113,8 +109,8 @@ async function deleteMatchedMessage(message) {
         return false;
       }, message.id);
 
-      // Brief 150ms pause for WebSocket revocation frame to process
-      await new Promise((r) => setTimeout(r, 150));
+      // Brief 100ms pause for WebSocket revocation frame to process
+      await new Promise((r) => setTimeout(r, 100));
       deleteSuccess = await verifyMessageRevoked(message);
     } catch (fallbackErr) {
       deleteSuccess = false;
